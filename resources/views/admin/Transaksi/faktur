@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faktur Pajak</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            line-height: 1.2;
+            margin: 0;
+            padding: 20px;
+            background-color: white;
+            color: black;
+        }
+        
+        .invoice-container {
+            max-width: 210mm;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border: 2px solid black;
+        }
+        
+        .header {
+            text-align: left;
+            margin-bottom: 15px;
+        }
+        
+        .header h1 {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0 0 10px 0;
+            color: black;
+        }
+        
+        .company-line {
+            margin: 2px 0;
+        }
+        
+        .invoice-number {
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        
+        .section-header {
+            font-weight: bold;
+            margin: 15px 0 5px 0;
+        }
+        
+        .info-line {
+            margin: 2px 0;
+        }
+        
+        .table-container {
+            margin: 15px 0;
+        }
+        
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+        }
+        
+        .items-table th {
+            border: 1px solid black;
+            padding: 3px;
+            text-align: center;
+            font-weight: bold;
+            background: white;
+        }
+        
+        .items-table td {
+            border: 1px solid black;
+            padding: 3px;
+            vertical-align: top;
+        }
+        
+        .items-table .center {
+            text-align: center;
+        }
+        
+        .items-table .right {
+            text-align: right;
+        }
+        
+        .calculation-section {
+            margin: 15px 0;
+            font-size: 11px;
+        }
+        
+        .calc-line {
+            margin: 2px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .signature-section {
+            margin: 20px 0;
+            text-align: left;
+            font-size: 10px;
+        }
+        
+        .warning-section {
+            margin: 15px 0;
+            font-size: 9px;
+            line-height: 1.3;
+        }
+        
+        .footer {
+            text-align: right;
+            margin-top: 20px;
+            font-size: 10px;
+        }
+        
+        @media print {
+            body {
+                padding: 0;
+            }
+            .invoice-container {
+                max-width: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <div class="header">
+            <h1>Faktur Pajak</h1>
+            <div class="company-line">Nama: JAYA NIAGA SEMESTA</div>
+            <div class="company-line">Alamat: JALAN TAMAN KOPO INDAH V RUKO</div>
+            <div class="company-line">SOHO SOMMERVILLE NO.51, KAB. BANDUNG</div>
+            <div class="company-line">#0759043698445000000000</div>
+        </div>
+        
+        <div class="invoice-number">
+            Kode dan Nomor Seri Faktur Pajak: 04002500269144250
+        </div>
+        
+        <div class="section-header">Pengusaha Kena Pajak:</div>
+        <div class="info-line">Nama : JAYA NIAGA SEMESTA</div>
+        <div class="info-line">Alamat : JALAN TAMAN KOPO INDAH V RUKO SOHO SOMMERVILLE NO.51, RT 009, RW 016, RAHAYU,</div>
+        <div class="info-line">MARGAASIH, KAB. BANDUNG, JAWA BARAT 40351</div>
+        <div class="info-line">NPWP : 0759043698445000</div>
+        
+        <div class="section-header">Pembeli Barang Kena Pajak/Penerima Jasa Kena Pajak:</div>
+        <div class="info-line">Nama : STERIN LABORATORIES</div>
+        <div class="info-line">Alamat : KOMPLEK ISTANA REGENCY KAV 71 , RT 005, RW 006, SUKARAJA, CICENDO, KOTA BANDUNG,</div>
+        <div class="info-line">JAWA BARAT 40175 #0313633323428000000000</div>
+        <div class="info-line">NPWP : 0313633323428000</div>
+        <div class="info-line">NIK : -</div>
+        <div class="info-line">Nomor Paspor : -</div>
+        <div class="info-line">Identitas Lain : -</div>
+        <div class="info-line">Email: sterinlabs.cbg+pst@gmail.com</div>
+        
+        <div class="table-container">
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th style="width: 30px;">No.</th>
+                        <th style="width: 60px;">Kode<br>Barang/<br>Jasa</th>
+                        <th style="width: 350px;">Nama Barang Kena Pajak / Jasa Kena Pajak</th>
+                        <th style="width: 120px;">Harga Jual / Penggantian /<br>Uang Muka / Termin<br>(Rp)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="center">1</td>
+                        <td class="center">000000</td>
+                        <td>SAINT GOBAIN TYGON 3350 ABW00013# ID 3/16" x OD 3/8"<br>x WT 3/32 x 50 FT<br>Rp 4.275.000,00 x 2,00 Roll<br>Potongan Harga = Rp 0,00<br>PPnBM (0,00%) = Rp 0,00</td>
+                        <td class="right">8.550.000,00</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="calculation-section">
+            <div class="calc-line">
+                <span>Harga Jual / Penggantian / Uang Muka / Termin</span>
+                <span>8.550.000,00</span>
+            </div>
+            <div class="calc-line">
+                <span>Dikurangi Potongan Harga</span>
+                <span>0,00</span>
+            </div>
+            <div class="calc-line">
+                <span>Dikurangi Uang Muka yang telah diterima</span>
+                <span></span>
+            </div>
+            <div class="calc-line">
+                <span>Dasar Pengenaan Pajak</span>
+                <span>7.837.500,00</span>
+            </div>
+            <div class="calc-line">
+                <span>Jumlah PPN (Pajak Pertambahan Nilai)</span>
+                <span>940.500,00</span>
+            </div>
+            <div class="calc-line">
+                <span>Jumlah PPnBM (Pajak Penjualan atas Barang Mewah)</span>
+                <span>0,00</span>
+            </div>
+        </div>
+        
+        <div style="font-size: 9px; margin: 15px 0; line-height: 1.3;">
+            Sesuai dengan ketentuan yang berlaku, Direktorat Jenderal Pajak mengatur bahwa Faktur Pajak ini telah ditandatangani secara elektronik sehingga tidak diperlukan tanda tangan basah pada Faktur Pajak ini.
+        </div>
+        
+        <div class="signature-section">
+            <div style="margin-bottom: 15px;">KAB. BANDUNG, 01 September 2025</div>
+            <div style="margin-bottom: 15px;">Ditandatangani secara elektronik</div>
+            <div style="margin-bottom: 10px;">JEFFRY</div>
+            <div>(Referensi: PO No 40-PO-SEPT-25)</div>
+        </div>
+        
+        <div class="warning-section">
+            <div style="margin-bottom: 8px;">
+                <strong>Pemberitahuan:</strong> Faktur Pajak ini telah dilaporkan ke Direktorat Jenderal Pajak dan telah memperoleh persetujuan sesuai dengan ketentuan peraturan perpajakan yang berlaku. <strong>PERINGATAN:</strong> PKP yang membuat Faktur Pajak yang tidak sesuai dengan keadaan yang sebenarnya dan/atau sesungguhnya sebagaimana dimaksud dalam Pasal 13 ayat (9) UU PPN dikenai sanksi sesuai dengan Pasal 14 ayat (4) UU KUP.
+            </div>
+        </div>
+        
+        <div class="footer">
+            <strong>1 dari 1</strong>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,204 @@
+/* Override Select2 dropdown text color to black */
+.select2-container--bootstrap-5 .select2-results__option {
+    color: black !important;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #f8f9fa !important;
+    color: black !important;
+}
+
+/* Additional overrides for modal context */
+.modal .select2-container--bootstrap-5 .select2-results__option {
+    color: black !important;
+}
+
+.modal .select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: #f8f9fa !important;
+    color: black !important;
+}
+
+/* More specific overrides */
+.select2-container--bootstrap-5
+    .select2-results__options
+    .select2-results__option {
+    color: black !important;
+}
+
+.select2-container--bootstrap-5
+    .select2-results__options
+    .select2-results__option--highlighted {
+    background-color: #f8f9fa !important;
+    color: black !important;
+}
+
+.modal
+    .select2-container--bootstrap-5
+    .select2-results__options
+    .select2-results__option {
+    color: black !important;
+}
+
+.modal
+    .select2-container--bootstrap-5
+    .select2-results__options
+    .select2-results__option--highlighted {
+    background-color: #f8f9fa !important;
+    color: black !important;
+}
+
+/* Custom class overrides for higher specificity */
+.custom-select2 .select2-results__option {
+    color: black !important;
+}
+
+.custom-select2 .select2-results__option--highlighted {
+    background-color: #f8f9fa !important;
+    color: black !important;
+}
+
+.custom-select2 .select2-results__options .select2-results__option {
+    color: black !important;
+}
+
+.custom-select2
+    .select2-results__options
+    .select2-results__option--highlighted {
+    background-color: #f8f9fa !important;
+    color: black !important;
+}
+
+.custom-country-dropdown .select2-results__options {
+    max-height: 600px; /* you can adjust this value */
+    overflow-y: auto;
+}
+
+/* Target the span inside the option */
+.custom-select2 .select2-results__option span {
+    color: black !important;
+}
+
+.custom-select2 .select2-results__option--highlighted span {
+    color: black !important;
+}
+
+.custom-select2 .select2-results__options .select2-results__option span {
+    color: black !important;
+}
+
+.custom-select2
+    .select2-results__options
+    .select2-results__option--highlighted
+    span {
+    color: black !important;
+}
+
+/* Override for the dropdown container */
+.select2-dropdown .select2-results__option {
+    color: black !important;
+}
+
+.select2-dropdown .select2-results__option--highlighted {
+    background-color: #f8f9fa !important;
+    color: black !important;
+}
+
+.select2-dropdown .select2-results__options .select2-results__option {
+    color: black !important;
+}
+
+.select2-dropdown
+    .select2-results__options
+    .select2-results__option--highlighted {
+    background-color: #f8f9fa !important;
+    color: black !important;
+}
+
+/* Target span in dropdown */
+.select2-dropdown .select2-results__option span {
+    color: black !important;
+}
+
+.select2-dropdown .select2-results__option--highlighted span {
+    color: black !important;
+}
+
+.select2-dropdown .select2-results__options .select2-results__option span {
+    color: black !important;
+}
+
+.select2-dropdown
+    .select2-results__options
+    .select2-results__option--highlighted
+    span {
+    color: black !important;
+}
+
+/* Override selected text color in Select2 input */
+.select2-container--default .select2-selection__rendered {
+    color: black !important;
+}
+
+.select2-container--default .select2-selection__placeholder {
+    color: #6c757d !important; /* Gray for placeholder */
+}
+
+.custom-select2 .select2-selection__rendered {
+    color: black !important;
+}
+
+.custom-select2 .select2-selection__placeholder {
+    color: #6c757d !important;
+}
+
+/* Target the span inside the selection */
+.custom-select2 .select2-selection__rendered span {
+    color: black !important;
+}
+
+.custom-select2 .select2-selection__placeholder span {
+    color: #6c757d !important;
+}
+
+/* For all Select2 instances */
+.select2-container--default .select2-selection__rendered {
+    color: black !important;
+}
+
+.select2-container--default .select2-selection__rendered span {
+    color: black !important;
+}
+
+/* More specific overrides for modal context */
+.modal .select2-container--default .select2-selection__rendered {
+    color: black !important;
+}
+
+.modal .select2-container--default .select2-selection__rendered span {
+    color: black !important;
+}
+
+.modal .custom-select2 .select2-selection__rendered {
+    color: black !important;
+}
+
+.modal .custom-select2 .select2-selection__rendered span {
+    color: black !important;
+}
+
+.custom-select2 + .select2-container .select2-selection--single {
+    height: 44px !important;        /* UBAH DI SINI */
+    padding: 6px 12px !important;
+    display: flex;
+    align-items: center;
+}
+
+.custom-select2 + .select2-container .select2-selection__rendered {
+    line-height: 1.5 !important;
+    padding-left: 0 !important;
+    color: #212529;
+}
+
+.custom-select2 + .select2-container .select2-selection__arrow {
+    height: 44px !important;        /* SAMA DENGAN HEIGHT */
+}
