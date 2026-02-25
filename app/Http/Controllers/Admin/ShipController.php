@@ -6,12 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Jobs\UploadTradeDocuments;
 use App\Models\FedexCommercialInvoice;
 use App\Models\FedexCommercialInvoiceItem;
+use App\Models\LionShipment;
 use App\Models\Transaksi;
 use App\Models\TransaksiInvoice;
 use App\Services\FedexService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
 use App\Models\ProdukStok;
 use App\Models\User;
@@ -65,8 +67,9 @@ class ShipController extends Controller
         }
 
         $fedexShipment = \App\Models\FedexShipment::where('idtrans', $invoice->idtrans)->first();
+        $lionparcelShipment = LionShipment::where('idtrans', $invoice->idtrans)->first();
 
-        return view('admin.Ship.show', compact('invoice', 'fedexShipment'));
+        return view('admin.Ship.show', compact('invoice', 'fedexShipment', 'lionparcelShipment'));
     }
 
     public function update(Request $request, $id)
@@ -156,6 +159,58 @@ class ShipController extends Controller
             ->where('status', 3)
             ->paginate(10);
         return view('admin.Ship.shipment', compact('invoices'));
+    }
+
+    public function updateResiLion(Request $request, $id)
+    {
+        $request->validate([
+            'no_resi' => 'required|string|max:255',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $invoice = TransaksiInvoice::findOrFail($id);
+            $transaksi = $invoice->transaksi;
+
+            // Update no_resi di invoice
+            $invoice->no_resi = $request->no_resi;
+            $invoice->jasa_ekspedisi = 'Lion Parcel';
+            $invoice->status = 3; // Mark as shipped
+            $invoice->save();
+
+            // Update status transaksi
+            $transaksi->status = 3; // Dikirim
+            $transaksi->shipped_at = now();
+            $transaksi->save();
+
+            // Catat ke proses transaksi, hindari duplikat
+            TransaksiProses::updateOrCreate(
+                ['idtrans' => $transaksi->id],
+                [
+                    'kode_ship' => 'SHIP-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
+                    'status' => 3, // Dikirim
+                    'kode_inv' => $invoice->kode_inv,
+                    'no_resi' => $request->no_resi,
+                    'expedisi' => 'Lion Parcel',
+                ]
+            );
+
+            DB::commit();
+
+            // Siapkan URL untuk cetak
+            $printUrl = route('admin.lion.print', $invoice->id);
+
+            session()->flash('success', 'Nomor resi berhasil disimpan. AWB siap dicetak.');
+            session()->flash('print_url', $printUrl);
+
+
+            return redirect()->route('admin.ship.show', $invoice->id);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Gagal memperbarui nomor resi Lion Parcel: ' . $e->getMessage(), ['invoice_id' => $id]);
+            return redirect()->back()->with('error', 'Gagal memperbarui nomor resi: ' . $e->getMessage());
+        }
     }
 
 
@@ -318,6 +373,89 @@ class ShipController extends Controller
             ]);
 
             return redirect()->back()->with('error', 'An error occurred while creating the FedEx shipment. Please check the logs for details.');
+        }
+    }
+
+
+
+    public function print($invoice_id)
+    {
+        // 1. Cari invoice dan relasi pengiriman Lion Parcel
+        $invoice = TransaksiInvoice::findOrFail($invoice_id);
+        $lionShipment = LionShipment::where('idtrans', $invoice->idtrans)->first();
+
+        // 2. Validasi jika pengiriman atau nomor STT tidak ditemukan
+        if (!$lionShipment || empty($lionShipment->tracking_number)) {
+            return redirect()->back()->with('error', 'Nomor STT Lion Parcel tidak ditemukan untuk invoice ini.');
+        }
+
+        // 3. Ambil konfigurasi dari .env
+        $sttNumber = $lionShipment->tracking_number;
+        $clientId = env('LION_PARCEL_CLIENT_ID', '2407'); // Fallback ke client ID contoh
+        $printUrl = env('LION_PARCEL_PRINT_URL', 'https://stg-genesis.lionparcel.com/print/stt');
+
+        // 4. Buat query string dengan aman
+        $queryParams = http_build_query([
+            'q' => $sttNumber,
+            'client' => $clientId,
+        ]);
+
+        // 5. Gabungkan URL dan redirect ke halaman eksternal
+        $fullUrl = $printUrl . '?' . $queryParams;
+
+        return redirect()->away($fullUrl);
+    }
+
+    public function updateStatusAfterPrint(Request $request, $invoice_id)
+    {
+        DB::beginTransaction();
+        try {
+            $invoice = TransaksiInvoice::findOrFail($invoice_id);
+            $transaksi = Transaksi::findOrFail($invoice->idtrans);
+
+            // Update status
+            $invoice->status = 3;
+            $invoice->save();
+
+            $transaksi->status = 3;
+            $transaksi->shipped_at = now();
+            $transaksi->save();
+
+            // Create TransaksiProses record
+            TransaksiProses::create([
+                'idtrans' => $invoice->idtrans,
+                'kode_ship' => 'SHIP-' . date('Ymd') . '-' . strtoupper(Str::random(4)), // Or generate as needed
+                'status' => 3, // Dikirim
+                'kode_inv' => $invoice->kode_inv,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::commit();
+
+            // Prepare the redirect URL for printing
+            $lionShipment = LionShipment::where('idtrans', $invoice->idtrans)->first();
+            if (!$lionShipment || empty($lionShipment->tracking_number)) {
+                return response()->json(['error' => 'Nomor STT tidak ditemukan.'], 404);
+            }
+
+            $sttNumber = $lionShipment->tracking_number;
+            $clientId = env('LION_PARCEL_CLIENT_ID', '2407');
+            $printUrl = env('LION_PARCEL_PRINT_URL', 'https://stg-genesis.lionparcel.com/print/stt');
+            $queryParams = http_build_query(['q' => $sttNumber, 'client' => $clientId]);
+            $fullUrl = $printUrl . '?' . $queryParams;
+
+            // Flash a success message to the session
+            session()->flash('success', 'Status pengiriman berhasil diperbarui dan AWB siap dicetak.');
+
+            return response()->json([
+                'success' => true,
+                'print_url' => $fullUrl
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Gagal memperbarui status setelah cetak AWB: ' . $e->getMessage());
+            return response()->json(['error' => 'Terjadi kesalahan saat memperbarui status.'], 500);
         }
     }
 }

@@ -67,12 +67,8 @@
                                         <td>{{ $invoice->transaksi->user->userDetail->nama ?? '-' }}</td>
                                         <td>{{ $invoice->transaksi?->address?->country?->country_name ?? '-' }}</td>
                                         <td>
-                                            @if ($invoice->transaksi->shipping_currency == 'IDR')
-                                                Rp
-                                            @else
-                                                $
-                                            @endif
-                                            {{ number_format($invoice->total, 2, ',', '.') }}
+                                            {{ $invoice->transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}
+                                            {{ number_format($invoice->total, $invoice->transaksi->shipping_currency == 'IDR' ? 0 : 2, ',', '.') }}
                                         </td>
                                         <td data-order="{{ $invoice->created_at->timestamp }}">
                                             {{ $invoice->created_at->format('d-m-Y H:i:s') }}</td>

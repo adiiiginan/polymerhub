@@ -33,18 +33,17 @@ class LionParcelService
 
     public function createShipment(array $payload)
     {
-        Log::info('LION_CREATE_SHIPMENT_PAYLOAD', $payload);
-
         $response = Http::withHeaders([
             'Authorization' => 'Basic ' . $this->basicAuth,
+            'x-api-key' => $this->apiKey,
             'Content-Type' => 'application/json',
-        ])->post($this->apiUrl . '/v2/client/shipment/create', $payload);
+        ])->post('https://api-stg-middleware.thelionparcel.com/client/booking', $payload);
 
 
         $response = $this->resolveResponse($response);
 
         LionLog::create([
-            'endpoint' => '/v2/client/shipment/create',
+            'endpoint' => 'https://api-stg-middleware.thelionparcel.com/client/booking',
             'request_json' => json_encode($payload),
             'response_json' => $response->body(),
             'status_code' => $response->status(),
@@ -62,7 +61,7 @@ class LionParcelService
             ]);
         }
 
-        return $response;
+        return $response->json();
     }
 
     public function getRates(array $data)
@@ -86,6 +85,7 @@ class LionParcelService
 
         $response = Http::withHeaders([
             'Authorization' => 'Basic ' . $this->basicAuth,
+            'x-api-key' => $this->apiKey,
             'Accept' => 'application/json',
         ])->get($this->apiUrl . '/v3/tariff', $queryParams);
 

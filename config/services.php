@@ -55,6 +55,8 @@ return [
         'api_url' => env('LION_PARCEL_API_URL'),
         'api_key' => env('LION_PARCEL_API_KEY'),
         'basic_auth' => env('LION_BASIC_AUTH'),
+        'print_url' => env('LION_PRINT_URL'),
+        'client_id' => env('LION_CLIENT_ID'),
         'shipper' => [
             'name' => env('LION_SHIPPER_NAME'),
             'email' => env('LION_SHIPPER_EMAIL'),

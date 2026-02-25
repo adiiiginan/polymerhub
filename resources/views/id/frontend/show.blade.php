@@ -7,6 +7,7 @@
             <div class="flex justify-center">
                 <img src="{{ asset('backend/assets/media/produk/' . $produk->gambar) }}" alt="{{ $produk->nama_produk }}"
                     id="product-image" class="w-full max-w-md object-contain border p-2 rounded">
+
             </div>
 
             <!-- Detail Produk -->
@@ -18,8 +19,9 @@
 
                 @if ($jenis_unik->isNotEmpty() && collect($variants_data)->isNotEmpty())
                     <!-- Dropdown Shape -->
-                    <label class="block text-sm font-medium mb-1">* Bentuk</label>
-                    <select id="shape-select" class="w-full border rounded p-2 mb-4">
+                    <label for="shape-select" class="block text-sm font-medium mb-1">* Bentuk</label>
+                    <select id="shape-select" name="shape"
+                        class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 mb-4">
                         <option value="">Pilih...</option>
                         @foreach ($jenis_unik as $jenis)
                             <option value="{{ $jenis->id }}">{{ $jenis->jenis }}</option>
@@ -27,9 +29,11 @@
                     </select>
 
                     <!-- Dropdown Dimensions -->
-                    <label class="block text-sm font-medium mb-1">* Dimensi</label>
-                    <select id="dimensions-select" class="w-full border rounded p-2 mb-4" disabled>
-                        <option value="">Pilih Shape Terlebih Dahulu...</option>
+                    <label for="dimensions-select" class="block text-sm font-medium mb-1">* Dimensi</label>
+                    <select id="dimensions-select" name="dimension"
+                        class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 mb-4"
+                        disabled>
+                        <option value="">Pilih Bentuk Terlebih Dahulu...</option>
                     </select>
                 @else
                     <div class="mb-4 p-4 border border-yellow-300 bg-yellow-50 text-yellow-800 rounded">
@@ -48,17 +52,25 @@
                     <input type="hidden" name="product_stok_id" id="product-stok-id">
                     <!-- QTY -->
                     <div class="flex items-center mb-4">
-                        <label class="mr-2 font-medium">Jumlah </label>
-                        <input type="number" id="qty" name="qty" value="1" min="1"
-                            class="w-20 border rounded text-center p-2">
+                        <label for="qty" class="mr-2 font-medium">Jumlah</label>
+                        <div class="flex items-center border border-gray-300 rounded-md shadow-sm">
+                            <button type="button" id="qty-minus"
+                                class="px-3 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500">-</button>
+                            <input type="number" id="qty" name="qty" value="1" min="1"
+                                class="w-16 border-0 text-center p-2 focus:ring-0">
+                            <button type="button" id="qty-plus"
+                                class="px-3 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500">+</button>
+                        </div>
 
                         <button type="submit" id="btn-add-to-cart"
-                            class="ml-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded" style="display: none;">
+                            class="ml-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow-sm"
+                            style="display: none;">
                             Masukan Keranjang
                         </button>
 
                         <a href="{{ route('id.frontend.contact') }}" id="btn-contact-us"
-                            class="ml-4 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded" style="display: none;">
+                            class="ml-4 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md shadow-sm"
+                            style="display: none;">
                             Hubungi Kami
                         </a>
                     </div>
@@ -74,81 +86,85 @@
                 <div class="flex gap-4">
                     <!-- Request Quote -->
                     <button id="btn-request-quote"
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded">Permintaan Penawaran</button>
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md shadow-sm">Permintaan
+                        Penawaran</button>
                 </div>
             </div>
         </div>
 
-        <!-- Spesifikasi Material -->
-        <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
-            <!-- Kolom Kiri: Spesifikasi -->
-            <div style="width: 98%;margin-left: 28px; color:#1A3D7C;">
-                <h2 class="text-xl font-bold mb-4">Spesifikasi Material</h2>
-                <table class="w-full border text-sm">
-                    <tbody>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Temperature - Range</td>
-                            <td class="p-2">{{ $produk->tempratur ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Max PV (Continuous)</td>
-                            <td class="p-2">{{ $produk->max_pv ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Maximum P - MPa</td>
-                            <td class="p-2">{{ $produk->maximum_p ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Max V (no load)</td>
-                            <td class="p-2">{{ $produk->max_v ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Shaft Hardness - Minimum</td>
-                            <td class="p-2">{{ $produk->hardness ?? 'Rb25' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Friction - Static & dynamic</td>
-                            <td class="p-2">{{ $produk->friction ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Elongation ASTM D638</td>
-                            <td class="p-2">{{ $produk->elongation ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Tensile Strenght ASTM D638 Mpa</td>
-                            <td class="p-2">{{ $produk->tensile ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Deformation Under Loadx</td>
-                            <td class="p-2">{{ $produk->deformation ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Spesific Gravity</td>
-                            <td class="p-2">{{ $produk->spesific ?? '-' }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Kolom Kanan: Deskripsi -->
-            <div>
-                <h2 id="description-toggle" class="flex items-center text-xl font-bold mb-4 cursor-pointer select-none">
-                    <span style="color:#1A3D7C;"> Deskripsi</span>
-                    <span id="description-icon" class="ml-2 transform transition-transform duration-300 inline-block"
-                        aria-hidden="true" style="color:#1A3D7C;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                            xmlns="http://www.w3.org/2000/svg" style="display:block;">
-                            <path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" />
+        <!-- Deskripsi & Spesifikasi -->
+        <div class="mt-12 w-full">
+            <!-- Deskripsi -->
+            <div class="border border-gray-200 rounded-lg mb-10">
+                <button id="description-toggle"
+                    class="flex items-center justify-between w-full p-4 text-xl font-bold text-left cursor-pointer select-none hover:bg-gray-50 rounded-t-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    aria-expanded="true" aria-controls="description-content">
+                    <span style="color:#1A3D7C;">Deskripsi</span>
+                    <span id="description-icon" class="transform transition-transform duration-300 rotate-180">
+                        <svg class="w-6 h-6" style="color:#1A3D7C;" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                            </path>
                         </svg>
                     </span>
-                </h2>
-                <div id="description-content"
-                    class="text-gray-700 leading-relaxed max-h-0 overflow-hidden transition-all duration-300 font-bold"
-                    style="color:#1A3D7C; margin-bottom: 82px;">
-                    <p class="mt-2">
-                        {!! nl2br(e($produk->rincian)) !!}
-                    </p>
+                </button>
+                <div id="description-content" class="overflow-hidden transition-all duration-500 ease-in-out">
+                    <div class="p-4 border-t border-gray-200">
+                        <p class="text-gray-700 leading-relaxed">
+                            {!! nl2br(e($produk->rincian)) !!}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Spesifikasi Material -->
+            <div style="color:#1A3D7C;">
+                <h2 class="text-xl font-bold mb-4">Spesifikasi Material</h2>
+                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                    <table class="w-full text-sm divide-y divide-gray-200">
+                        <tbody class="divide-y divide-gray-200">
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Temperature - Range</td>
+                                <td class="p-3 text-gray-700">{{ $produk->tempratur ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Max PV (Continuous)</td>
+                                <td class="p-3 text-gray-700">{{ $produk->max_pv ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Maximum P - MPa</td>
+                                <td class="p-3 text-gray-700">{{ $produk->maximum_p ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Max V (no load)</td>
+                                <td class="p-3 text-gray-700">{{ $produk->max_v ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Shaft Hardness - Minimum</td>
+                                <td class="p-3 text-gray-700">{{ $produk->hardness ?? 'Rb25' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Friction - Static & dynamic</td>
+                                <td class="p-3 text-gray-700">{{ $produk->friction ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Elongation ASTM D638</td>
+                                <td class="p-3 text-gray-700">{{ $produk->elongation ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Tensile Strenght ASTM D638 Mpa</td>
+                                <td class="p-3 text-gray-700">{{ $produk->tensile ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Deformation Under Loadx</td>
+                                <td class="p-3 text-gray-700">{{ $produk->deformation ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Spesific Gravity</td>
+                                <td class="p-3 text-gray-700">{{ $produk->spesific ?? '-' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -171,6 +187,12 @@
                 const contactUsButton = document.getElementById('btn-contact-us');
                 const productStokIdInput = document.getElementById('product-stok-id');
                 const cartForm = document.getElementById('cart-form');
+                const qtyInput = document.getElementById('qty');
+                const qtyPlus = document.getElementById('qty-plus');
+                const qtyMinus = document.getElementById('qty-minus');
+                const descriptionToggle = document.getElementById('description-toggle');
+                const descriptionContent = document.getElementById('description-content');
+                const descriptionIcon = document.getElementById('description-icon');
 
                 const variants = {!! json_encode($variants_data) !!};
                 const defaultImage = productImage ? productImage.src : '';
@@ -327,6 +349,49 @@
                                 addToCartButton.textContent = 'Masukan Keranjang';
                                 addToCartButton.disabled = false;
                             });
+                    });
+                }
+
+                /* ===============================
+                 * QTY INPUT HANDLER
+                 * =============================== */
+                if (qtyPlus && qtyMinus && qtyInput) {
+                    qtyPlus.addEventListener('click', () => {
+                        qtyInput.value = parseInt(qtyInput.value) + 1;
+                    });
+
+                    qtyMinus.addEventListener('click', () => {
+                        const currentValue = parseInt(qtyInput.value);
+                        if (currentValue > 1) {
+                            qtyInput.value = currentValue - 1;
+                        }
+                    });
+                }
+
+                /* ===============================
+                 * DESCRIPTION ACCORDION
+                 * =============================== */
+                if (descriptionToggle && descriptionContent && descriptionIcon) {
+                    // Set initial state based on aria-expanded attribute
+                    const isInitiallyExpanded = descriptionToggle.getAttribute('aria-expanded') === 'true';
+                    if (isInitiallyExpanded) {
+                        descriptionContent.style.maxHeight = descriptionContent.scrollHeight + 'px';
+                    } else {
+                        descriptionContent.style.maxHeight = '0px';
+                    }
+
+                    descriptionToggle.addEventListener('click', () => {
+                        const isExpanded = descriptionToggle.getAttribute('aria-expanded') === 'true';
+
+                        if (isExpanded) {
+                            descriptionContent.style.maxHeight = '0px';
+                            descriptionIcon.classList.remove('rotate-180');
+                            descriptionToggle.setAttribute('aria-expanded', 'false');
+                        } else {
+                            descriptionContent.style.maxHeight = descriptionContent.scrollHeight + 'px';
+                            descriptionIcon.classList.add('rotate-180');
+                            descriptionToggle.setAttribute('aria-expanded', 'true');
+                        }
                     });
                 }
 

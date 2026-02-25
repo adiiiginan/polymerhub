@@ -98,8 +98,9 @@
                                         </td>
 
                                         <td>{{ $invoice->transaksi?->details->sum('qty') ?? 0 }}</td>
-                                        <td>$
-                                            {{ number_format($invoice->transaksi?->total ?: $invoice->transaksi?->details?->sum(fn($d) => $d->harga * $d->qty), 2, ',', '.') }}
+                                        <td>
+                                            {{ $invoice->transaksi?->shipping_currency == 'IDR' ? 'Rp' : '$' }}
+                                            {{ number_format($invoice->transaksi?->total ?: $invoice->transaksi?->details?->sum(fn($d) => $d->harga * $d->qty), $invoice->transaksi?->shipping_currency == 'IDR' ? 0 : 2, ',', '.') }}
                                         </td>
                                         <td>
                                             @if ($invoice->status == 8)

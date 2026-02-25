@@ -36,7 +36,7 @@ class ProductController extends Controller
             $query->whereIn('maximum_p', $request->pressure);
         }
 
-        $produk = $query->get()->unique('nama_produk');
+        $produk = $query->groupBy('nama_produk')->paginate(12);
 
         // Get filter options
         $categories = Produk::select('id_kat')->distinct()->get();
@@ -101,7 +101,6 @@ class ProductController extends Controller
 
         $view_data = compact(
             'produk',
-            'related_products',
             'jenis_unik',
             'variants_data'
         );

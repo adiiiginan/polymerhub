@@ -2,15 +2,15 @@
     <div class="container mx-auto px-4">
         <div class="flex justify-between items-center py-4">
             <!-- Logo -->
-            <a href="" class="flex items-center space-x-2" aria-label="JNS Logo">
-                <img src="{{ asset('backend/assets/media/logos/logo.png') }}" alt="JNS Logo" class="h-8 w-auto">
-                <span class="font-bold text-xl text-gray-800">JNS</span>
+            <a href="{{ route('en.home') }}" class="flex items-center space-x-2" aria-label="JNS Logo">
+                <img src="{{ asset('backend/assets/media/logos/logos/3.png') }}" alt="JNS Logo" class="h-20 w-auto">
+
             </a>
 
             <!-- Desktop Navigation -->
             <nav class="hidden lg:flex items-center space-x-8">
-                <a href="{{ route('home') }}"
-                    class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('home') ? 'font-semibold text-blue-600' : '' }}">Home</a>
+                <a href="{{ route('en.home') }}"
+                    class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('en.home') ? 'font-semibold text-blue-600' : '' }}">Home</a>
                 <div class="relative" x-data="{ open: false }">
                     <button @click="open = !open" @click.away="open = false"
                         class="flex items-center text-gray-600 hover:text-blue-600 transition-colors">
@@ -29,8 +29,8 @@
                 <a href="{{ route('en.frontend.white') }}"
                     class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('en.frontend.white') ? 'font-semibold text-blue-600' : '' }}">White
                     Paper</a>
-                <a href="{{ route('en.frontend.brochure') }}"
-                    class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('en.frontend.brochure') ? 'font-semibold text-blue-600' : '' }}">Brochure</a>
+                <a href="{{ route('en.brochure') }}"
+                    class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('en.brochure') ? 'font-semibold text-blue-600' : '' }}">Brochure</a>
                 <a href="{{ route('en.frontend.contact') }}"
                     class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('en.frontend.contact') ? 'font-semibold text-blue-600' : '' }}">Contact
                     Us</a>
@@ -48,7 +48,7 @@
                     </button>
                     <div x-show="open" @click.away="open = false"
                         class="absolute right-0 mt-2 p-4 bg-white rounded-md shadow-lg w-64 z-20">
-                        <form action="{{ route('frontend.produk') }}" method="GET">
+                        <form action="{{ route('en.frontend.produk') }}" method="GET">
                             <input type="search" name="search" placeholder="Search products..."
                                 class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </form>
@@ -153,7 +153,7 @@
             <a href="{{ route('en.frontend.white') }}"
                 class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">White
                 Paper</a>
-            <a href="{{ route('en.frontend.brochure') }}"
+            <a href="{{ route('en.brochure') }}"
                 class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">Brochure</a>
             <a href="{{ route('en.frontend.contact') }}"
                 class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">Contact

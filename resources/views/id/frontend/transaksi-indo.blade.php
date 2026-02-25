@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('id.layouts.app')
 
 @section('title', 'Detail Transaksi')
 
@@ -36,14 +36,15 @@
                     <div class="text-sm text-gray-600 mt-1">
                         {{ $primaryAddress->email ?? ($transaksi->user->userDetail->email ?? 'customer@email.com') }}</div>
                     <div class="text-sm text-gray-600">
-                        {{ $primaryAddress->alamat ?? ($transaksi->user->detail->alamat ?? 'Customer Address') }}
+                        {{ $primaryAddress->alamat ?? ($transaksi->user->userDetail->alamat ?? 'Customer Address') }}
                     </div>
                     <div class="text-sm text-gray-600">
-                        {{ $primaryAddress->no_hp ?? ($transaksi->user->detail->no_hp ?? 'Phone Number') }}</div>
+                        {{ $primaryAddress->no_hp ?? ($transaksi->user->userDetail->no_hp ?? 'Phone Number') }}</div>
                 </div>
                 <div class="flex-1 border border-gray-300 p-4 bg-gray-50 rounded">
                     <div class="font-bold mb-2 text-gray-700">Attn:</div>
-                    <div>{{ $primaryAddress->nama ?? 'Customer Name' }}</div>
+                    <div> {{ $primaryAddress->perusahaan ?? ($transaksi->user->userDetail->perusahaan ?? 'Customer Name') }}
+                    </div>
                     <br>
                     <div class="font-bold mb-1 text-gray-700">Subject:</div>
                     <div>Waiting for Payment</div>

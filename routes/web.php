@@ -59,7 +59,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::resource('produk', 'App\Http\Controllers\Admin\ProdukController');
         // Ship Routes
         Route::get('/ship/shipment', [ShipController::class, 'shipment'])->name('ship.shipment');
-        Route::put('/ship/update-resi/{id}', [ShipController::class, 'update_resi'])->name('ship.update_resi');
+        Route::post('/ship/update-resi-lion/{id}', [ShipController::class, 'updateResiLion'])->name('admin.lion.update-resi');
         Route::post('/ship/create-shipment', [ShipController::class, 'createShipment'])->name('ship.create-shipment');
         Route::get('/ship/print_surat_jalan_dan_resi/{id}', [ShipController::class, 'print_surat_jalan'])->name('ship.print_surat_jalan_dan_resi');
         Route::get('/ship/packing-slip/{id}', [ShipController::class, 'packing_slip'])->name('ship.packing_slip');
@@ -99,6 +99,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/user/{user}/edit', [AdminController::class, 'edit'])->name('user.edit');
         Route::put('/user/{user}', [AdminController::class, 'update'])->name('user.update');
         Route::delete('/user/{user}', [AdminController::class, 'destroy'])->name('user.destroy');
+
+        Route::get('/shipping/lion/print/{invoice}', [ShipController::class, 'print'])->name('lion.print');
+        Route::post('/shipping/lion/update-status-after-print/{invoice}', [ShipController::class, 'updateStatusAfterPrint'])->name('ship.update-status-after-print');
     });
 });
 

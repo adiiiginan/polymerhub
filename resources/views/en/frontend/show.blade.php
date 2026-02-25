@@ -3,33 +3,44 @@
 @section('content')
     <div class="max-w-7xl mx-auto px-4 py-10" style="color:#1A3D7C;">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-            <!-- Product Image -->
+            <!-- Gambar Produk -->
             <div class="flex justify-center">
                 <img src="{{ asset('backend/assets/media/produk/' . $produk->gambar) }}" alt="{{ $produk->nama_produk }}"
                     id="product-image" class="w-full max-w-md object-contain border p-2 rounded">
+
             </div>
 
-            <!-- Product Details -->
+            <!-- Detail Produk -->
             <div>
                 <h1 class="text-3xl font-bold mb-2">{{ $produk->nama_produk }}</h1>
-                <p class="text-gray-500 mb-6">Part Number: {{ $produk->kode_produk ?? '-' }}</p>
+                <p class="text-gray-500 mb-6">Kode : {{ $produk->kode_produk ?? '-' }}</p>
 
-                <p class="mb-2 text-sm">Click on Request Quote if you do not see the dimension of your choice</p>
+                <p class="mb-2 text-sm">Klik Request Quote jika Anda tidak melihat dimensi yang Anda inginkan</p>
 
-                <!-- Shape Dropdown -->
-                <label class="block text-sm font-medium mb-1">* Shape</label>
-                <select id="shape-select" class="w-full border rounded p-2 mb-4">
-                    <option value="">Select...</option>
-                    @foreach ($jenis_unik as $jenis)
-                        <option value="{{ $jenis->id }}">{{ $jenis->jenis }}</option>
-                    @endforeach
-                </select>
+                @if ($jenis_unik->isNotEmpty() && collect($variants_data)->isNotEmpty())
+                    <!-- Dropdown Shape -->
+                    <label for="shape-select" class="block text-sm font-medium mb-1">* Bentuk</label>
+                    <select id="shape-select" name="shape"
+                        class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 mb-4">
+                        <option value="">Select....</option>
+                        @foreach ($jenis_unik as $jenis)
+                            <option value="{{ $jenis->id }}">{{ $jenis->jenis }}</option>
+                        @endforeach
+                    </select>
 
-                <!-- Dimensions Dropdown -->
-                <label class="block text-sm font-medium mb-1">* Dimensions</label>
-                <select id="dimensions-select" class="w-full border rounded p-2 mb-4" disabled>
-                    <option value="">Select Shape First...</option>
-                </select>
+                    <!-- Dropdown Dimensions -->
+                    <label for="dimensions-select" class="block text-sm font-medium mb-1">* Dimensions</label>
+                    <select id="dimensions-select" name="dimension"
+                        class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 mb-4"
+                        disabled>
+                        <option value="">Select Shape First...</option>
+                    </select>
+                @else
+                    <div class="mb-4 p-4 border border-yellow-300 bg-yellow-50 text-yellow-800 rounded">
+                        <p>This product does not have available shape or dimension options at the moment. Please
+                            contact us or use the "Request Quote" button for more information.</p>
+                    </div>
+                @endif
 
                 <!-- Price -->
                 <div class="mb-4">
@@ -41,251 +52,185 @@
                     <input type="hidden" name="product_stok_id" id="product-stok-id">
                     <!-- QTY -->
                     <div class="flex items-center mb-4">
-                        <label class="mr-2 font-medium">QTY</label>
-                        <input type="number" id="qty" name="qty" value="1" min="1"
-                            class="w-20 border rounded text-center p-2">
+                        <label for="qty" class="mr-2 font-medium">Quantity</label>
+                        <div class="flex items-center border border-gray-300 rounded-md shadow-sm">
+                            <button type="button" id="qty-minus"
+                                class="px-3 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500">-</button>
+                            <input type="number" id="qty" name="qty" value="1" min="1"
+                                class="w-16 border-0 text-center p-2 focus:ring-0">
+                            <button type="button" id="qty-plus"
+                                class="px-3 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500">+</button>
+                        </div>
 
                         <button type="submit" id="btn-add-to-cart"
-                            class="ml-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded" style="display: none;">
+                            class="ml-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow-sm"
+                            style="display: none;">
                             Add to Cart
                         </button>
 
-                        <a href="{{ route('en.contact') }}" id="btn-contact-us"
-                            class="ml-4 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded" style="display: none;">
+                        <a href="{{ route('en.frontend.contact') }}" id="btn-contact-us"
+                            class="ml-4 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md shadow-sm"
+                            style="display: none;">
                             Contact Us
                         </a>
                     </div>
                 </form>
 
                 <div class="mb-4">
-                    <p id="stock-display" class="text-sm" style="display: none;">Stock available: <span
-                            id="stock-value"></span></p>
+                    <p id="stock-display" class="text-sm" style="display: none;">Stok Tersedia: <span
+                            id="stock-value"></span>
+                    </p>
                 </div>
 
                 <!-- Tombol -->
                 <div class="flex gap-4">
                     <!-- Request Quote -->
                     <button id="btn-request-quote"
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded">Request Quote</button>
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md shadow-sm">Permintaan
+                        Quote</button>
                 </div>
             </div>
         </div>
 
-        <!-- Spesifikasi Material -->
-        <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
-            <!-- Kolom Kiri: Spesifikasi -->
-            <div style="width: 98%;margin-left: 28px; color:#1A3D7C;">
-                <h2 class="text-xl font-bold mb-4">Typical Characteristics of Material</h2>
-                <table class="w-full border text-sm">
-                    <tbody>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Temperature - Range</td>
-                            <td class="p-2">{{ $produk->tempratur ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Max PV (Continuous)</td>
-                            <td class="p-2">{{ $produk->max_pv ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Maximum P - MPa</td>
-                            <td class="p-2">{{ $produk->maximum_p ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Max V (no load)</td>
-                            <td class="p-2">{{ $produk->max_v ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Shaft Hardness - Minimum</td>
-                            <td class="p-2">{{ $produk->hardness ?? 'Rb25' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Friction - Static & dynamic</td>
-                            <td class="p-2">{{ $produk->friction ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Elongation ASTM D638</td>
-                            <td class="p-2">{{ $produk->elongation ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Tensile Strenght ASTM D638 Mpa</td>
-                            <td class="p-2">{{ $produk->tensile ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Deformation Under Loadx</td>
-                            <td class="p-2">{{ $produk->deformation ?? '-' }}</td>
-                        </tr>
-                        <tr class="border">
-                            <td class="p-2 font-medium">Spesific Gravity</td>
-                            <td class="p-2">{{ $produk->spesific ?? '-' }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Kolom Kanan: Deskripsi -->
-            <div>
-                <h2 id="description-toggle" class="flex items-center text-xl font-bold mb-4 cursor-pointer select-none">
-                    <span style="color:#1A3D7C;"> Description</span>
-                    <span id="description-icon" class="ml-2 transform transition-transform duration-300 inline-block"
-                        aria-hidden="true" style="color:#1A3D7C;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                            xmlns="http://www.w3.org/2000/svg" style="display:block;">
-                            <path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" />
+        <!-- Deskripsi & Spesifikasi -->
+        <div class="mt-12 w-full">
+            <!-- Deskripsi -->
+            <div class="border border-gray-200 rounded-lg mb-10">
+                <button id="description-toggle"
+                    class="flex items-center justify-between w-full p-4 text-xl font-bold text-left cursor-pointer select-none hover:bg-gray-50 rounded-t-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    aria-expanded="true" aria-controls="description-content">
+                    <span style="color:#1A3D7C;">Description</span>
+                    <span id="description-icon" class="transform transition-transform duration-300 rotate-180">
+                        <svg class="w-6 h-6" style="color:#1A3D7C;" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                            </path>
                         </svg>
                     </span>
-                </h2>
-                <div id="description-content"
-                    class="text-gray-700 leading-relaxed max-h-0 overflow-hidden transition-all duration-300 font-bold"
-                    style="color:#1A3D7C; margin-bottom: 82px;">
-                    <p class="mt-2">
-                        {!! nl2br(e($produk->deskripsi)) !!}
-                    </p>
+                </button>
+                <div id="description-content" class="overflow-hidden transition-all duration-500 ease-in-out">
+                    <div class="p-4 border-t border-gray-200">
+                        <p class="text-gray-700 leading-relaxed">
+                            {!! nl2br(e($produk->deskripsi)) !!}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Spesifikasi Material -->
+            <div style="color:#1A3D7C;">
+                <h2 class="text-xl font-bold mb-4">Spesifikasi Material</h2>
+                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                    <table class="w-full text-sm divide-y divide-gray-200">
+                        <tbody class="divide-y divide-gray-200">
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Temperature - Range</td>
+                                <td class="p-3 text-gray-700">{{ $produk->tempratur ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Max PV (Continuous)</td>
+                                <td class="p-3 text-gray-700">{{ $produk->max_pv ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Maximum P - MPa</td>
+                                <td class="p-3 text-gray-700">{{ $produk->maximum_p ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Max V (no load)</td>
+                                <td class="p-3 text-gray-700">{{ $produk->max_v ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Shaft Hardness - Minimum</td>
+                                <td class="p-3 text-gray-700">{{ $produk->hardness ?? 'Rb25' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Friction - Static & dynamic</td>
+                                <td class="p-3 text-gray-700">{{ $produk->friction ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Elongation ASTM D638</td>
+                                <td class="p-3 text-gray-700">{{ $produk->elongation ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Tensile Strenght ASTM D638 Mpa</td>
+                                <td class="p-3 text-gray-700">{{ $produk->tensile ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Deformation Under Loadx</td>
+                                <td class="p-3 text-gray-700">{{ $produk->deformation ?? '-' }}</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="p-3 font-medium">Spesific Gravity</td>
+                                <td class="p-3 text-gray-700">{{ $produk->spesific ?? '-' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 
-
     @push('scripts')
         <script>
             document.addEventListener('DOMContentLoaded', function() {
+
+                /* ===============================
+                 * ELEMENTS
+                 * =============================== */
                 const shapeSelect = document.getElementById('shape-select');
                 const dimensionSelect = document.getElementById('dimensions-select');
                 const productImage = document.getElementById('product-image');
                 const priceSpan = document.getElementById('product-price');
-                const addToCartButton = document.getElementById('btn-add-to-cart');
                 const stockDisplay = document.getElementById('stock-display');
                 const stockValue = document.getElementById('stock-value');
-                const variants = {!! json_encode($variants_data) !!};
-                const defaultImage = productImage.src;
-
+                const addToCartButton = document.getElementById('btn-add-to-cart');
+                const contactUsButton = document.getElementById('btn-contact-us');
+                const productStokIdInput = document.getElementById('product-stok-id');
+                const cartForm = document.getElementById('cart-form');
+                const qtyInput = document.getElementById('qty');
+                const qtyPlus = document.getElementById('qty-plus');
+                const qtyMinus = document.getElementById('qty-minus');
                 const descriptionToggle = document.getElementById('description-toggle');
                 const descriptionContent = document.getElementById('description-content');
                 const descriptionIcon = document.getElementById('description-icon');
 
-                if (descriptionToggle) {
-                    descriptionToggle.addEventListener('click', function() {
-                        if (descriptionContent.style.maxHeight) {
-                            descriptionContent.style.maxHeight = null;
-                        } else {
-                            descriptionContent.style.maxHeight = descriptionContent.scrollHeight + "px";
-                        }
-                        descriptionIcon.classList.toggle('rotate-90');
-                    });
+                const variants = {!! json_encode($variants_data) !!};
+                const defaultImage = productImage ? productImage.src : '';
+
+                /* ===============================
+                 * HELPER FUNCTIONS
+                 * =============================== */
+
+                function formatPrice(price) {
+                    return new Intl.NumberFormat('id-ID', {
+                        style: 'currency',
+                        currency: 'IDR',
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }).format(price);
                 }
 
-                const productStokIdInput = document.getElementById('product-stok-id');
-                const cartForm = document.querySelector('form[action="{{ route('en.frontend.cart.add') }}"]');
-
-                if (cartForm) {
-                    cartForm.addEventListener('submit', function(e) {
-                        e.preventDefault();
-
-                        const formData = new FormData(this);
-                        addToCartButton.disabled = true;
-                        addToCartButton.textContent = 'Adding...';
-
-                        fetch('{{ route('en.frontend.cart.add') }}', {
-                                method: 'POST',
-                                body: formData,
-                                headers: {
-                                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                                    'Accept': 'application/json',
-                                },
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.success) {
-                                    window.location.href = '{{ route('en.frontend.cart.index') }}';
-                                } else if (data.redirect) {
-                                    window.location.href = data.redirect;
-                                } else {
-                                    alert(data.message || 'An error occurred. Please try again.');
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Error:', error);
-                                alert('An error occurred. Please try again.');
-                            })
-                            .finally(() => {
-                                addToCartButton.textContent = 'Add to Cart';
-                                // Re-evaluate button state based on stock
-                                const selectedVariant = variants.find(v => v.id == dimensionSelect.value);
-                                if (selectedVariant) {
-                                    addToCartButton.disabled = selectedVariant.stok <= 0;
-                                }
-                            });
-                    });
+                function resetProductView() {
+                    priceSpan.textContent = '-';
+                    stockDisplay.style.display = 'none';
+                    addToCartButton.style.display = 'none';
+                    contactUsButton.style.display = 'none';
+                    productStokIdInput.value = '';
+                    productImage.src = defaultImage;
                 }
 
-                function updateProductDetails(variantId) {
-                    const selectedVariant = variants.find(v => v.id == variantId);
-                    const addToCartButton = document.getElementById('btn-add-to-cart');
-                    const contactUsButton = document.getElementById('btn-contact-us');
-                    const cartForm = document.getElementById('cart-form');
-
-
-
-                    if (selectedVariant) {
-                        // Robust price parsing
-                        let rawPrice = selectedVariant.harga ? selectedVariant.harga.toString() : "0";
-                        let cleanedPrice = rawPrice.replace(/[^\d,.]/g, '');
-                        const lastComma = cleanedPrice.lastIndexOf(',');
-                        const lastDot = cleanedPrice.lastIndexOf('.');
-                        let price = 0;
-
-                        if (lastComma > lastDot) {
-                            price = parseFloat(cleanedPrice.replace(/\./g, '').replace(',', '.'));
-                        } else if (lastDot > lastComma) {
-                            price = parseFloat(cleanedPrice.replace(/,/g, ''));
-                        } else {
-                            price = parseFloat(cleanedPrice.replace(',', '.'));
-                        }
-
-                        // Update UI based on price
-                        if (!isNaN(price)) {
-                            // Format to "USD $XX.XX"
-                            const formattedPrice = new Intl.NumberFormat('en-US', {
-                                style: 'currency',
-                                currency: 'USD'
-                            }).format(price);
-                            priceSpan.textContent = formattedPrice;
-
-                        } else {
-                            priceSpan.textContent = 'Contact for price';
-                        }
-                        addToCartButton.style.display = 'inline-block';
-                        contactUsButton.style.display = 'none';
-                        cartForm.action = "{{ route('en.frontend.cart.add') }}";
-                        cartForm.onsubmit = null;
-
-                        // Update other details (stock, ID, image)
-                        stockValue.textContent = selectedVariant.stok;
-                        stockDisplay.style.display = 'block';
-                        productStokIdInput.value = selectedVariant.id;
-                        addToCartButton.disabled = selectedVariant.stok <= 0;
-
-                        productImage.src = selectedVariant.gambar ?
-                            '{{ asset('backend/assets/media/produk/') }}/' + selectedVariant.gambar :
-                            defaultImage;
-
-                    } else {
-                        // Reset to default state
-                        priceSpan.textContent = 'Contact for price';
-                        stockDisplay.style.display = 'none';
-                        productImage.src = defaultImage;
-                        addToCartButton.style.display = 'none';
-                        contactUsButton.style.display = 'inline-block';
-                        addToCartButton.disabled = true;
-                        productStokIdInput.value = '';
-                    }
-                }
-
+                /* ===============================
+                 * UPDATE DIMENSIONS BY SHAPE
+                 * =============================== */
                 function updateDimensions(shapeId) {
-                    dimensionSelect.innerHTML = '<option value="">Select Dimension...</option>';
+                    dimensionSelect.innerHTML = '<option value="">Pilih Dimensi...</option>';
+                    dimensionSelect.disabled = true;
+
+                    if (!shapeId) return;
+
                     const filtered = variants.filter(v => v.jenis_id == shapeId);
-                    if (filtered.length > 0) {
+
+                    if (filtered.length) {
                         filtered.forEach(v => {
                             const option = document.createElement('option');
                             option.value = v.id;
@@ -293,35 +238,163 @@
                             dimensionSelect.appendChild(option);
                         });
                         dimensionSelect.disabled = false;
-                    } else {
-                        dimensionSelect.disabled = true;
                     }
                 }
 
-                shapeSelect.addEventListener('change', function() {
-                    const shapeId = this.value;
-                    updateDimensions(shapeId);
+                /* ===============================
+                 * UPDATE PRODUCT DETAIL
+                 * =============================== */
+                function updateProductDetails(variantId) {
+                    resetProductView();
 
-                    if (shapeId) {
-                        const filtered = variants.find(v => v.jenis_id == shapeId);
-                        if (filtered.length > 0) {
-                            const firstVariantId = filtered[0].id;
-                            dimensionSelect.value = firstVariantId;
-                            updateProductDetails(firstVariantId);
-                        } else {
-                            updateProductDetails(null);
-                        }
+                    const variant = variants.find(v => v.id == variantId);
+                    if (!variant) return;
+
+                    // PRICE
+                    const price = parseFloat(variant.hargi || 0);
+                    if (price > 0) {
+                        priceSpan.textContent = formatPrice(price);
+                        addToCartButton.style.display = 'inline-block';
+                        contactUsButton.style.display = 'none';
+                        addToCartButton.disabled = variant.stok <= 0;
                     } else {
-                        updateProductDetails(null);
+                        priceSpan.textContent = 'Hubungi untuk harga';
+                        addToCartButton.style.display = 'none';
+                        contactUsButton.style.display = 'inline-block';
                     }
-                });
 
-                dimensionSelect.addEventListener('change', function() {
-                    updateProductDetails(this.value);
-                });
+                    // STOCK
+                    stockValue.textContent = variant.stok;
+                    stockDisplay.style.display = 'block';
 
-                // Initial state setup
-                updateProductDetails(null);
+                    // IMAGE
+                    productImage.src = variant.gambar ?
+                        '{{ asset('backend/assets/media/produk/') }}/' + variant.gambar :
+                        defaultImage;
+
+                    productStokIdInput.value = variant.id;
+                }
+
+                /* ===============================
+                 * EVENTS
+                 * =============================== */
+
+                if (shapeSelect) {
+                    shapeSelect.addEventListener('change', function() {
+                        updateDimensions(this.value);
+                        resetProductView();
+                    });
+                }
+
+                if (dimensionSelect) {
+                    dimensionSelect.addEventListener('change', function() {
+                        updateProductDetails(this.value);
+                    });
+                }
+
+                if (cartForm) {
+                    cartForm.addEventListener('submit', function(e) {
+                        e.preventDefault();
+
+                        addToCartButton.disabled = true;
+                        addToCartButton.textContent = 'Loading...';
+
+                        fetch(this.action, {
+                                method: 'POST',
+                                body: new FormData(this),
+                                headers: {
+                                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                    'Accept': 'application/json'
+                                }
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.success) {
+                                    Swal.fire({
+                                        text: data.message || "Produk berhasil ditambahkan.",
+                                        icon: "success",
+                                        confirmButtonText: "OK"
+                                    }).then((result) => {
+                                        if (result.isConfirmed) {
+                                            window.location.href =
+                                                "{{ route('en.frontend.cart.index') }}";
+                                        }
+                                    });
+                                } else {
+                                    if (data.redirect) {
+                                        Swal.fire({
+                                            text: data.message,
+                                            icon: 'warning',
+                                            showCancelButton: true,
+                                            confirmButtonText: 'Login',
+                                            cancelButtonText: 'Batal'
+                                        }).then((result) => {
+                                            if (result.isConfirmed) {
+                                                window.location.href = data.redirect;
+                                            }
+                                        });
+                                    } else {
+                                        Swal.fire({
+                                            text: data.message || "Gagal menambahkan produk.",
+                                            icon: "error",
+                                            confirmButtonText: "OK"
+                                        });
+                                    }
+                                }
+                            })
+                            .catch(() => {
+                                alert('Terjadi kesalahan');
+                            })
+                            .finally(() => {
+                                addToCartButton.textContent = 'Masukan Keranjang';
+                                addToCartButton.disabled = false;
+                            });
+                    });
+                }
+
+                /* ===============================
+                 * QTY INPUT HANDLER
+                 * =============================== */
+                if (qtyPlus && qtyMinus && qtyInput) {
+                    qtyPlus.addEventListener('click', () => {
+                        qtyInput.value = parseInt(qtyInput.value) + 1;
+                    });
+
+                    qtyMinus.addEventListener('click', () => {
+                        const currentValue = parseInt(qtyInput.value);
+                        if (currentValue > 1) {
+                            qtyInput.value = currentValue - 1;
+                        }
+                    });
+                }
+
+                /* ===============================
+                 * DESCRIPTION ACCORDION
+                 * =============================== */
+                if (descriptionToggle && descriptionContent && descriptionIcon) {
+                    // Set initial state based on aria-expanded attribute
+                    const isInitiallyExpanded = descriptionToggle.getAttribute('aria-expanded') === 'true';
+                    if (isInitiallyExpanded) {
+                        descriptionContent.style.maxHeight = descriptionContent.scrollHeight + 'px';
+                    } else {
+                        descriptionContent.style.maxHeight = '0px';
+                    }
+
+                    descriptionToggle.addEventListener('click', () => {
+                        const isExpanded = descriptionToggle.getAttribute('aria-expanded') === 'true';
+
+                        if (isExpanded) {
+                            descriptionContent.style.maxHeight = '0px';
+                            descriptionIcon.classList.remove('rotate-180');
+                            descriptionToggle.setAttribute('aria-expanded', 'false');
+                        } else {
+                            descriptionContent.style.maxHeight = descriptionContent.scrollHeight + 'px';
+                            descriptionIcon.classList.add('rotate-180');
+                            descriptionToggle.setAttribute('aria-expanded', 'true');
+                        }
+                    });
+                }
+
             });
         </script>
     @endpush

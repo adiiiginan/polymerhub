@@ -11,6 +11,7 @@ use App\Models\Jenis;
 use App\Models\LionLog;
 use App\Models\Perusahaan;
 use App\Models\Produk;
+use App\Models\LionShipment;
 use App\Models\Transaksi;
 use App\Models\TransaksiDetail;
 use App\Models\Ukuran;
@@ -555,189 +556,213 @@ class CartController extends Controller
         return response()->json(['success' => false, 'message' => 'Failed to save shipping information.'], 500);
     }
 
+    private function prepareLionParcelPayload(Cart $cart, UserAddress $receiverAddress, $idtransaksi, $subtotal)
+    {
+        $origin = strtoupper(config('services.lionparcel.shipper.origin'));
+        if (empty($origin)) {
+            throw new \Exception('Konfigurasi origin (LION_SHIPPER_ORIGIN) tidak boleh kosong.');
+        }
+
+        $kecamatan = trim($receiverAddress->kecamatan);
+        $city = trim($receiverAddress->city);
+
+        if (empty($kecamatan) || empty($city)) {
+            throw new \Exception('Kecamatan atau Kota pada alamat tujuan tidak boleh kosong.');
+        }
+
+        // Hapus singkatan umum dari nama kecamatan dan kota
+        $replacements = ['Kab.' => '', 'Kabupaten' => '', 'Kec.' => '', 'Kecamatan' => ''];
+        $kecamatan = trim(str_ireplace(array_keys($replacements), array_values($replacements), $kecamatan));
+        $city = trim(str_ireplace(array_keys($replacements), array_values($replacements), $city));
+
+        $destination = strtoupper($kecamatan . ', ' . $city);
+
+        $items = $cart->items->map(function ($item) {
+            $variant = $item->produk->variants
+                ->where('id_ukuran', $item->id_ukuran)
+                ->first();
+
+            return [
+                "stt_piece_length" => (float)($variant->length ?? 1),
+                "stt_piece_width" => (float)($variant->width ?? 1),
+                "stt_piece_height" => (float)($variant->height ?? 1),
+                "stt_piece_gross_weight" => (float)$item->gros, // Assuming item->gros is in KG
+            ];
+        })->toArray();
+
+        return [
+            "stt" => [
+                "stt_no" => "",
+                "stt_no_ref_external" => $idtransaksi,
+                "stt_tax_number" => "09.314.652.0-987.319",
+                "stt_goods_estimate_price" => $subtotal,
+                "stt_goods_status" => "",
+                "stt_origin" => $origin,
+                "stt_destination" => $destination,
+                "stt_sender_name" => config('services.lionparcel.shipper.name'),
+                "stt_sender_phone" => config('services.lionparcel.shipper.phone'),
+                "stt_sender_address" => config('services.lionparcel.shipper.address'),
+                "stt_recipient_name" => $receiverAddress->nama,
+                "stt_recipient_address" => $receiverAddress->alamat,
+                "stt_recipient_phone" => $receiverAddress->phone,
+                "stt_insurance_type" => "free",
+                "stt_product_type" => strtolower($cart->shipping_service),
+                "stt_commodity_code" => "BPI087",
+                "stt_is_cod" => false,
+                "stt_is_dfod" => false,
+                "stt_is_woodpacking" => false,
+                "stt_pieces" => $items,
+                "stt_piece_per_pack" => 1,
+                "stt_next_commodity" => "",
+                "stt_cod_amount" => 0
+            ]
+        ];
+    }
+
     public function checkoutLionParcel(Request $request, LionParcelService $lionParcelService)
     {
+        DB::beginTransaction();
+
         try {
+
             $customer = Auth::guard('customer')->user();
             if (!$customer) {
-                return response()->json(['status' => 'error', 'message' => 'Customer not authenticated.'], 401);
+                throw new \Exception('Customer not authenticated.');
             }
 
-            $cart = Cart::where('iduser', $customer->id)->where('status', 1)->with('items.produk.variants')->first();
+            $cart = Cart::where('iduser', $customer->id)
+                ->where('status', 1)
+                ->with('items.produk.variants')
+                ->first();
 
             if (!$cart || $cart->items->isEmpty()) {
-                return response()->json(['status' => 'error', 'message' => 'Cart is empty or not found.'], 404);
+                throw new \Exception('Cart is empty or not found.');
             }
 
             if (!$cart->address_id || !$cart->shipping_service || !$cart->shipping_cost) {
-                return response()->json(['status' => 'error', 'message' => 'Shipping details are incomplete. Please select an address and shipping service.'], 400);
+                throw new \Exception('Shipping details incomplete.');
             }
 
             $receiverAddress = UserAddress::find($cart->address_id);
             if (!$receiverAddress) {
-                return response()->json(['status' => 'error', 'message' => 'Invalid shipping address stored in cart.'], 400);
+                throw new \Exception('Invalid shipping address.');
             }
 
-            DB::beginTransaction();
+            /*
+        |--------------------------------------------------------------------------
+        | HITUNG TOTAL
+        |--------------------------------------------------------------------------
+        */
 
             $subtotal = $cart->items->sum(fn($item) => $item->harga * $item->qty);
             $total = $subtotal + $cart->shipping_cost;
             $idtransaksi = 'TRX-' . strtoupper(Str::random(10));
 
+            /*
+        |--------------------------------------------------------------------------
+        | SIMPAN TRANSAKSI
+        |--------------------------------------------------------------------------
+        */
+
             $transaksi = Transaksi::create([
                 'idtransaksi' => $idtransaksi,
-                'user_id' => $customer->id,
-                'status' => 1, // Pending
+                'iduser' => $customer->id,
+                'status' => 1,
                 'subtotal' => $subtotal,
                 'shipping_cost' => $cart->shipping_cost,
-                'shipping_service' => $cart->shipping_service,
+                'shipping_service' => strtoupper($cart->shipping_service),
                 'shipping_currency' => 'IDR',
                 'address_id' => $cart->address_id,
                 'total' => $total,
+                'expedisi' => 'Lion Parcel',
             ]);
 
             foreach ($cart->items as $item) {
                 TransaksiDetail::create([
-                    'idtransaksi' => $idtransaksi,
+                    'idtrans' => $transaksi->id,
+                    'iduser' =>  $customer->id,
                     'idproduk' => $item->idproduk,
                     'qty' => $item->qty,
                     'harga' => $item->harga,
                     'total' => $item->harga * $item->qty,
+                    'gros' => $item->gros,
+                    'id_jenis' => $item->id_jenis,
+                    'id_ukuran' => $item->id_ukuran,
+                    'subtotal' => $item->harga * $item->qty,
                 ]);
             }
 
-            $items = $cart->items->map(function ($item) {
-                $variant = $item->produk->variants->where('id_ukuran', $item->id_ukuran)->first();
-                // Convert weight from kg (stored in 'gros') to grams, ensuring it's an integer and at least 1.
-                $weightInGrams = max(1, (int)round((float)($item->gros ?? 0) * 1000));
+            /*
+        |--------------------------------------------------------------------------
+        | PAYLOAD LION
+        |--------------------------------------------------------------------------
+        */
 
-                return [
-                    'price' => (float)$item->harga,
-                    'weight' => $weightInGrams,
-                    'name' => $item->produk->nama_produk,
-                    'length' => (float)($variant->length ?? 1),
-                    'width' => (float)($variant->width ?? 1),
-                    'height' => (float)($variant->height ?? 1),
-                ];
-            })->toArray();
+            $payload = $this->prepareLionParcelPayload($cart, $receiverAddress, $idtransaksi, $subtotal);
 
-            // Format destination as KECAMATAN, KOTA/KABUPATEN in uppercase
-            $origin_config = explode(',', config('services.lionparcel.shipper.origin'));
-            $origin_kecamatan_nama = trim($origin_config[0]);
-            $origin_kota_nama = trim($origin_config[1]);
+            Log::channel('lionparcel')->info('FINAL_LION_PAYLOAD', $payload);
 
-            // -- DEBUGGING --
-            dd([
-                'LIONPARCEL_ORIGIN_ENV' => env('LIONPARCEL_ORIGIN'),
-                'CONFIG_SERVICES_ORIGIN' => config('services.lionparcel.shipper.origin'),
-                'PARSED_ORIGIN_KECAMATAN' => $origin_kecamatan_nama,
-                'PARSED_ORIGIN_KOTA' => $origin_kota_nama,
-                'DESTINATION_KECAMATAN' => $receiverAddress->kecamatan,
-                'DESTINATION_KOTA' => $receiverAddress->city,
-                'RECEIVER_ADDRESS_OBJECT' => $receiverAddress
-            ]);
-            // -- END DEBUGGING --
+            // Debug: Return the payload as a JSON response to inspect in the browser's network tab.
+            // return response()->json($payload);
 
-            $origin_area = \App\Models\LionKecamatan::where('nama', 'like', '%' . $origin_kecamatan_nama . '%')
-                ->whereHas('kota', function ($q) use ($origin_kota_nama) {
-                    $q->where('nama', 'like', '%' . $origin_kota_nama . '%');
-                })->first();
-
-            $destination_area = \App\Models\LionKecamatan::where('nama', 'like', '%' . $receiverAddress->kecamatan . '%')
-                ->whereHas('kota', function ($q) use ($receiverAddress) {
-                    $q->where('nama', 'like', '%' . $receiverAddress->city . '%');
-                })->first();
-
-            if (!$origin_area || !$destination_area) {
-                return response()->json(['status' => 'error', 'message' => 'Origin or destination area code not found.'], 400);
-            }
-
-            $payload = [
-                'shipment_type' => 'PICKUP',
-                'service_code' => strtoupper($cart->shipping_service),
-                'sender' => [
-                    'name' => config('services.lionparcel.shipper.name'),
-                    'phone' => config('services.lionparcel.shipper.phone'),
-                    'address' => config('services.lionparcel.shipper.address'),
-                    'post_code' => config('services.lionparcel.shipper.postal_code'),
-                    'origin' => $origin_area->kode_area,
-                    'email' => config('services.lionparcel.shipper.email'),
-                    'geoloc' => config('services.lionparcel.shipper.geoloc', '-6.965797984607324, 107.54938870737607'),
-                ],
-                'receiver' => [
-                    'name' => $receiverAddress->nama,
-                    'phone' => $receiverAddress->phone,
-                    'address' => $receiverAddress->alamat,
-                    'post_code' => $receiverAddress->zip_code,
-                    'destination' => $destination_area->kode_area,
-                    'email' => $customer->email,
-                    'geoloc' => '',
-                ],
-                'detail' => [
-                    'use_insurance' => false,
-                    'invoice_no' => $idtransaksi,
-                    'commodity' => 'BPI087',
-                    'is_cod' => false,
-                    'is_dfod' => false,
-                    'cod_value' => 0,
-                    'items' => $items,
-                ],
-            ];
-
-            Log::channel('lionparcel')->info('LION_CREATE_SHIPMENT_PAYLOAD', $payload);
+            /*
+        |--------------------------------------------------------------------------
+        | HIT API LION
+        |--------------------------------------------------------------------------
+        */
 
             $response = $lionParcelService->createShipment($payload);
 
-            if (isset($response['success']) && $response['success']) {
-                $transaksi->update([
-                    'lion_parcel_booking_id' => $response['data']['booking_id'] ?? null,
-                    'lion_parcel_stt' => $response['data']['stt'] ?? null,
-                    'lion_parcel_response' => json_encode($response),
-                ]);
-
-                // Create Lion Shipment record
-                DB::table('lion_shipments')->insert([
-                    'transaksi_id' => $transaksi->id,
-                    'booking_id' => $response['data']['booking_id'] ?? null,
-                    'stt' => $response['data']['stt'] ?? null,
-                    'response_data' => json_encode($response),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-
-                $cart->items()->delete();
-                $cart->delete();
-
-                DB::commit();
-
-                return response()->json(['status' => 'success', 'redirect_url' => route('id.frontend.checkout.success', $transaksi->idtransaksi)]);
-            } else {
-                DB::rollBack();
-
-                LionLog::create([
-                    'endpoint' => 'create_shipment_failure',
-                    'request_json' => json_encode($payload),
-                    'response_json' => json_encode($response),
-                    'status_code' => $response['status_code'] ?? 500,
-                ]);
-
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Failed to book shipment with Lion Parcel.',
-                    'details' => $response
-                ], 500);
+            if (!($response['success'] ?? false)) {
+                throw new \Exception($response['message'] ?? 'Lion API gagal.');
             }
-        } catch (\Exception $e) {
+
+            /*
+        |--------------------------------------------------------------------------
+        | UPDATE DATA
+        |--------------------------------------------------------------------------
+        */
+
+            $transaksi->update([
+                'lion_parcel_booking_id' => $response['data']['stt'][0]['stt_id'] ?? null,
+                'lion_parcel_stt' => $response['data']['stt'][0]['stt_no'] ?? null,
+                'lion_parcel_response' => json_encode($response),
+            ]);
+
+            LionShipment::create([
+                'idtrans' => $transaksi->id,
+                'tracking_number' =>  $response['data']['stt'][0]['stt_no'] ?? null,
+                'booking_id' => $response['data']['stt'][0]['stt_id'] ?? null,
+                'service_type' => $cart->shipping_service,
+                'total_charge' => $cart->shipping_cost,
+                'status' => '1',
+                'rate_response' => json_encode($response),
+                'shipper_address' => json_encode(config('services.lionparcel.shipper')),
+                'recipient_address' => json_encode($payload['stt']),
+                'weight' => $payload['stt']['stt_pieces'][0]['stt_piece_gross_weight'] ?? 0,
+                'currency' => 'IDR',
+            ]);
+
+            $cart->items()->delete();
+            $cart->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'redirect_url' => route('id.frontend.checkout.success', $transaksi->idtransaksi)
+            ]);
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            Log::channel('lionparcel')->error('CHECKOUT_LION_PARCEL_EXCEPTION', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+
+            Log::channel('lionparcel')->error('CHECKOUT_ERROR', [
+                'error' => $e->getMessage()
             ]);
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'An unexpected error occurred during checkout.',
-                'error_details' => $e->getMessage()
+                'message' => $e->getMessage()
             ], 500);
         }
     }
@@ -745,7 +770,7 @@ class CartController extends Controller
     public function success($idtransaksi)
     {
         $transaksi = Transaksi::where('idtransaksi', $idtransaksi)->firstOrFail();
-        return view('id.frontend.transaksi.show', compact('transaksi'));
+        return view('id.frontend.transaksi-indo', compact('transaksi'));
     }
 
     public function transaksi()

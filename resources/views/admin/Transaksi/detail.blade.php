@@ -72,9 +72,11 @@
                                                     </div>
                                                 </td>
                                                 <td class="text-end">{{ $detail->qty }}</td>
-                                                <td class="text-end">${{ number_format($detail->harga, 2, ',', '.') }}</td>
                                                 <td class="text-end">
-                                                    ${{ number_format($detail->harga * $detail->qty, 2, ',', '.') }}
+                                                    {{ $transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format($detail->harga, 2, ',', '.') }}
+                                                </td>
+                                                <td class="text-end">
+                                                    {{ $transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format($detail->harga * $detail->qty, 2, ',', '.') }}
                                                 </td>
                                             </tr>
                                         @endforeach
@@ -83,19 +85,20 @@
                                         <tr>
                                             <td colspan="3" class="text-end">Subtotal</td>
                                             <td class="text-end">
-                                                ${{ number_format($transaksi->details->sum(function ($d) {return $d->harga * $d->qty;}),2,',','.') }}
+                                                {{ $transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format($transaksi->details->sum(function ($d) {return $d->harga * $d->qty;}),2,',','.') }}
                                             </td>
                                         </tr>
 
                                         <tr>
                                             <td colspan="3" class="text-end">Biaya Ekspedisi</td>
-                                            <td class="text-end">$
+                                            <td class="text-end">
+                                                {{ $transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}
                                                 {{ number_format($transaksi->shipping_cost, 2, ',', '.') }}</td>
                                         </tr>
                                         <tr>
                                             <td colspan="3" class="text-end fs-5 fw-bold">Total</td>
                                             <td class="text-end fs-5 fw-bolder">
-                                                ${{ number_format($transaksi->details->sum(function ($d) {return $d->harga * $d->qty;}) + $transaksi->shipping_cost,2,',','.') }}
+                                                {{ $transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format($transaksi->details->sum(function ($d) {return $d->harga * $d->qty;}) + $transaksi->shipping_cost,2,',','.') }}
                                             </td>
                                         </tr>
                                     </tfoot>
@@ -116,7 +119,8 @@
                                     </tr>
                                     <tr>
                                         <th>Total</th>
-                                        <td>$ {{ number_format($transaksi->total, 2, ',', '.') }}</td>
+                                        <td>{{ $transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}
+                                            {{ number_format($transaksi->total, 2, ',', '.') }}</td>
                                     </tr>
                                     <tr>
                                         <th>Tanggal</th>

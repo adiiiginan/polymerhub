@@ -1,58 +1,55 @@
-<footer class="bg-[#06183a] text-white py-12">
-    <div class="container mx-auto px-6 max-w-screen-xl grid grid-cols-1 md:grid-cols-3 gap-12">
+<footer class="bg-slate-100 text-slate-700 pt-16 pb-8">
+    <div class="container mx-auto px-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
 
-        <!-- Kolom 1: Logo & Deskripsi -->
-        <div class="space-y-6"style="margin-left: 127px;">
-            <div class="flex items-center space-x-3">
-                <!-- Logo -->
-
-            </div>
-            <p class="text-gray-300">
-                Memberdayakan bisnis dengan solusi TI yang inovatif untuk meningkatkan kinerja dan hasil.
-            </p>
-
-            <!-- Sosial Media -->
-            <div class="flex space-x-4 text-gray-400">
-                <a href="#" class="hover:text-white transition"><i class="fab fa-x-twitter"></i></a>
-                <a href="#" class="hover:text-white transition"><i class="fab fa-linkedin"></i></a>
-                <a href="#" class="hover:text-white transition"><i class="fab fa-instagram"></i></a>
-                <a href="#" class="hover:text-white transition"><i class="fab fa-facebook"></i></a>
-            </div>
-
-            <!-- Back to Top -->
+            <!-- Kolom 1: About -->
             <div>
-                <a href="#top"
-                    class="inline-block border border-gray-500 px-4 py-2 rounded-md hover:bg-gray-700 transition">
-                    Kembali Ke Atas
-                </a>
+                <h2 class="text-slate-900 text-lg font-semibold mb-4">PolymerHub</h2>
+                <p class="text-sm mb-4">
+                    Engineering and supplying advanced polymer components for high-performance industrial applications.
+                </p>
+                <div class="flex space-x-4">
+                    <a href="#" class="hover:text-blue-600 transition-colors"><i class="fab fa-linkedin-in"></i></a>
+                    <a href="#" class="hover:text-blue-600 transition-colors"><i class="fab fa-youtube"></i></a>
+                    <a href="#" class="hover:text-blue-600 transition-colors"><i class="fab fa-twitter"></i></a>
+                </div>
             </div>
+
+            <!-- Kolom 2: Products -->
+            <div>
+                <h3 class="text-slate-900 font-semibold mb-4">Products</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="#" class="hover:text-blue-600 transition-colors">Rulon® Series</a></li>
+                    <li><a href="#" class="hover:text-blue-600 transition-colors">Meldin® Series</a></li>
+                    <li><a href="#" class="hover:text-blue-600 transition-colors">OmniSeal® Series</a></li>
+                    <li><a href="#" class="hover:text-blue-600 transition-colors">Explore All</a></li>
+                </ul>
+            </div>
+
+            <!-- Kolom 3: Company -->
+            <div>
+                <h3 class="text-slate-900 font-semibold mb-4">Company</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="#" class="hover:text-blue-600 transition-colors">About Us</a></li>
+                    <li><a href="#" class="hover:text-blue-600 transition-colors">Careers</a></li>
+                    <li><a href="#contact" class="hover:text-blue-600 transition-colors">Contact Us</a></li>
+                    <li><a href="#" class="hover:text-blue-600 transition-colors">Resources</a></li>
+                </ul>
+            </div>
+
+            <!-- Kolom 4: Legal -->
+            <div>
+                <h3 class="text-slate-900 font-semibold mb-4">Legal</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="#" class="hover:text-blue-600 transition-colors">Privacy Policy</a></li>
+                    <li><a href="#" class="hover:text-blue-600 transition-colors">Terms of Service</a></li>
+                </ul>
+            </div>
+
         </div>
 
-        <!-- Kolom 2: Site Map -->
-        <div class="space-y-2">
-            <h2 class="font-bold text-lg"></h2>
-            <div class="flex flex-col space-y-2 text-gray-300">
-                <a href="/" class="hover:text-white transition"></a>
-                <a href="/technology" class="hover:text-white transition"></a>
-                <a href="/products" class="hover:text-white transition"></a>
-
-            </div>
+        <div class="border-t border-slate-200 pt-8 mt-8 text-center text-sm">
+            <p>&copy; {{ date('Y') }} JAYA NIAGA SEMESTA. All Rights Reserved.</p>
         </div>
-
-        <!-- Kolom 3: Legal -->
-        <div class="space-y-4">
-            <h2 class="font-bold text-lg">Legal</h2>
-            <div class="flex flex-col space-y-2 text-gray-300">
-                <a href="{{ route('id.privacy') }}" class="hover:text-white transition">Kebijakan Privasi</a>
-                <a href="/terms" class="hover:text-white transition">Syarat dan Ketentuan</a>
-                <a href="/legal" class="hover:text-white transition">Pemberitahuan Legal</a>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- Copyright -->
-    <div class="text-center text-gray-400 mt-12 pt-6 border-t border-gray-700">
-        &copy; {{ date('Y') }} JNS. All Rights Reserved.
     </div>
 </footer>

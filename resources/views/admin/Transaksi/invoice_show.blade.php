@@ -49,8 +49,8 @@
         }
 
         .logo {
-            width: 80px;
-            height: 80px;
+            width: 180px;
+            height: 180px;
 
             display: flex;
             align-items: center;
@@ -238,14 +238,14 @@
     <div class="invoice-container">
         <!-- Header -->
         <div class="header">
-            <div class="company-info">
+            <div class="company-info"style="    margin-top: 60px;">
                 <h1>PT. JAYA NIAGA SEMESTA</h1>
                 <p>Taman Kopo Indah V Ruko Soho Sommerville No.51 Bandung 40218</p>
                 <p>Tel : +6222 54438330, +62878 2330 9818/+62 813 2184 0775</p>
                 <p>Email : info@jns.co.id&nbsp;&nbsp;&nbsp;Website : www.jns.co.id</p>
             </div>
-            <div class="logo"><img src="{{ asset('backend/assets/media/logos/logo.png') }}" alt="Logo" width="80"
-                    height="80"></div>
+            <div class="logo"><img src="{{ asset('backend/assets/media/logos/logo.png') }}" alt="Logo" width="180"
+                    height="180"></div>
         </div>
 
         <div style="text-align: center; margin-bottom: 20px;">
@@ -351,8 +351,12 @@
                             </div>
                         </td>
                         <td>{{ $detail->qty }} {{ $detail->produk->satuan ?? '' }}</td>
-                        <td class="currency">${{ number_format($detail->harga, 2, ',', '.') }}</td>
-                        <td class="currency">${{ number_format($detail->qty * $detail->harga, 2, ',', '.') }}</td>
+                        <td class="currency">
+                            {{ $invoice->transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format($detail->harga, 2, ',', '.') }}
+                        </td>
+                        <td class="currency">
+                            {{ $invoice->transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format($detail->qty * $detail->harga, 2, ',', '.') }}
+                        </td>
                     </tr>
                 @endforeach
             </tbody>
@@ -369,16 +373,16 @@
         <div class="totals">
             <div class="total-row">
                 <span>Sub Total :</span>
-                <span>${{ number_format($subtotal, 2, ',', '.') }}</span>
+                <span>{{ $invoice->transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format($subtotal, 2, ',', '.') }}</span>
             </div>
             <div class="total-row">
                 <span>Expedition Cost :</span>
-                <span>${{ number_format($shipping_cost, 2, ',', '.') }}</span>
+                <span>{{ $invoice->transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format($shipping_cost, 2, ',', '.') }}</span>
             </div>
 
             <div class="total-row grand-total">
                 <span>TOTAL INV :</span>
-                <span>${{ number_format($total, 2, ',', '.') }}</span>
+                <span>{{ $invoice->transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format($total, 2, ',', '.') }}</span>
             </div>
         </div>
 

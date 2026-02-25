@@ -76,7 +76,7 @@
                                         <td>{{ $tr->user->userDetail->nama ?? 'N/A' }}</td>
                                         <td>{{ $tr->user->email ?? '-' }}</td>
                                         <td>
-                                            $
+                                            {{ $tr->shipping_currency == 'IDR' ? 'Rp' : '$' }}
                                             {{ number_format($tr->total ?: $tr->details->sum(fn($d) => $d->harga * $d->qty), 2, ',', '.') }}
                                         </td>
                                         <td>{{ $tr->created_at->format('d M Y - H:i') }}</td>

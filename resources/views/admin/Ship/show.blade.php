@@ -126,19 +126,43 @@
                                     </h2>
                                 </div>
 
-                                <div class="card-toolbar">
-                                    @if (isset($fedexShipment) && $fedexShipment->label_url)
-                                        <a href="{{ $fedexShipment->label_url }}" target="_blank"
-                                            class="btn btn-sm btn-success">
-                                            Print AWB
-                                        </a>
-                                    @else
-                                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal"
-                                            data-bs-target="#fedexShippingModal">
-                                            (+) Atur Pengiriman
-                                        </button>
-                                    @endif
-                                </div>
+                                @if ($invoice->transaksi->status == 8)
+                                    <div class="card-toolbar">
+
+                                        @switch($invoice->transaksi->expedisi)
+                                            {{-- ================= FEDEx ================= --}}
+                                            @case('FedEx')
+                                                @if (isset($fedexShipment) && $fedexShipment->label_url)
+                                                    <a href="{{ route('admin.fedex.print', $invoice->id) }}" target="_blank"
+                                                        class="btn btn-sm btn-success">
+                                                        Print AWB
+                                                    </a>
+                                                @else
+                                                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal"
+                                                        data-bs-target="#fedexShippingModal">
+                                                        (+) Atur Pengiriman
+                                                    </button>
+                                                @endif
+                                            @break
+
+                                            {{-- ================= LION PARCEL ================= --}}
+                                            @case('LionParcel')
+                                                @if (isset($lionparcelShipment) && !empty($lionShipment->tracking_number))
+                                                    <button id="printAwbButton" data-invoice-id="{{ $invoice->id }}"
+                                                        class="btn btn-sm btn-success">
+                                                        Print AWB
+                                                    </button>
+                                                @else
+                                                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal"
+                                                        data-bs-target="#lionParcelShippingModal">
+                                                        (+) Atur Pengiriman
+                                                    </button>
+                                                @endif
+                                            @break
+                                        @endswitch
+
+                                    </div>
+                                @endif
                             </div>
                             <div class="card-body pt-0">
                                 @if (session('success'))
@@ -192,25 +216,34 @@
                                                     <td>{{ $detail->produk->kode_produk }}</td>
                                                     <td class="text-end">{{ $detail->qty }}</td>
                                                     <td class="text-end">
-                                                        $ {{ number_format($detail->harga, 2, ',', '.') }}</td>
+                                                        {{ $invoice->transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}
+                                                        {{ number_format($detail->harga, $invoice->transaksi->shipping_currency == 'IDR' ? 0 : 2, ',', '.') }}
+                                                    </td>
                                                     <td class="text-end">
-                                                        $ {{ number_format($detail->harga * $detail->qty, 2, ',', '.') }}
+                                                        {{ $invoice->transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}
+                                                        {{ number_format($detail->harga * $detail->qty, $invoice->transaksi->shipping_currency == 'IDR' ? 0 : 2, ',', '.') }}
                                                     </td>
                                                 </tr>
                                             @endforeach
                                             <tr>
                                                 <td colspan="4" class="text-end">Subtotal</td>
                                                 <td class="text-end">
-                                                    $ {{ number_format($invoice->total, 2, ',', '.') }}</td>
+                                                    {{ $invoice->transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}
+                                                    {{ number_format($invoice->total, $invoice->transaksi->shipping_currency == 'IDR' ? 0 : 2, ',', '.') }}
+                                                </td>
                                             </tr>
                                             <tr>
                                                 <td colspan="4" class="text-end">Shipping Cost</td>
-                                                <td class="text-end">${{ $invoice->transaksi->shipping_cost }}</td>
+                                                <td class="text-end">
+                                                    {{ $invoice->transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}
+                                                    {{ number_format($invoice->transaksi->shipping_cost, $invoice->transaksi->shipping_currency == 'IDR' ? 0 : 2, ',', '.') }}
+                                                </td>
                                             </tr>
                                             <tr>
                                                 <td colspan="4" class="fs-3 text-gray-900 text-end">Grand Total</td>
                                                 <td class="text-gray-900 fs-3 fw-bolder text-end">
-                                                    ${{ $invoice->total + $invoice->transaksi->shipping_cost }}
+                                                    {{ $invoice->transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}
+                                                    {{ number_format($invoice->total + $invoice->transaksi->shipping_cost, $invoice->transaksi->shipping_currency == 'IDR' ? 0 : 2, ',', '.') }}
                                                 </td>
                                             </tr>
                                         </tbody>
@@ -220,31 +253,6 @@
                         </div>
                     </div>
                     <!--end::Content-->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal -->
-    <div class="modal fade" id="fedexShippingModal" tabindex="-1" aria-labelledby="fedexShippingModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="fedexShippingModalLabel">Konfirmasi Pengiriman FedEx</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Anda yakin ingin membuat pengiriman FedEx untuk pesanan ini?</p>
-                    <p>Pastikan semua detail pesanan sudah benar sebelum melanjutkan.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <form action="{{ route('admin.ship.create-shipment') }}" method="POST">
-                        @csrf
-                        <input type="hidden" name="invoice_id" value="{{ $invoice->id }}">
-                        <button type="submit" class="btn btn-primary">Konfirmasi</button>
-                    </form>
                 </div>
             </div>
         </div>
@@ -271,10 +279,80 @@
 @endsection
 
 @section('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const printButton = document.getElementById('printAwbButton');
+            if (printButton) {
+                printButton.addEventListener('click', function() {
+                    const invoiceId = this.getAttribute('data-invoice-id');
+                    const url = `/admin/shipping/lion/update-status-after-print/${invoiceId}`;
+
+                    // Disable button to prevent multiple clicks
+                    this.disabled = true;
+                    this.innerText = 'Processing...';
+
+                    fetch(url, {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                const newTab = window.open(data.print_url, '_blank');
+
+                                // Check if the new tab was blocked
+                                if (!newTab || newTab.closed || typeof newTab.closed == 'undefined') {
+                                    alert(
+                                        'Status has been updated, but the print tab was blocked by your browser. Please allow pop-ups for this site.'
+                                    );
+                                }
+
+                                // Reload the page after a short delay to ensure the new tab has opened
+                                setTimeout(() => {
+                                    location.reload();
+                                }, 500);
+
+                            } else {
+                                // Show error message
+                                const errorAlert =
+                                    `<div class="alert alert-danger">${data.error || 'An unknown error occurred.'}</div>`;
+                                document.querySelector('.card-body.pt-0').insertAdjacentHTML(
+                                    'afterbegin', errorAlert);
+                                // Re-enable the button if there was an error
+                                printButton.disabled = false;
+                                printButton.innerText = 'Print AWB';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            const errorAlert =
+                                `<div class="alert alert-danger">A network error occurred. Please try again.</div>`;
+                            document.querySelector('.card-body.pt-0').insertAdjacentHTML('afterbegin',
+                                errorAlert);
+                            // Re-enable the button on network error
+                            printButton.disabled = false;
+                            printButton.innerText = 'Print AWB';
+                        });
+                });
+            }
+        });
+    </script>
     @if (session('success'))
         <script>
             var successModal = new bootstrap.Modal(document.getElementById('kt_modal_success'));
             successModal.show();
         </script>
     @endif
+    @if (session('print_url'))
+        <script>
+            window.open("{{ session('print_url') }}", '_blank');
+        </script>
+    @endif
 @endsection
+
+@include('admin.Ship.partials._fedex_shipping_modal')
+@include('admin.Ship.partials._lionparcel_shipping_modal')

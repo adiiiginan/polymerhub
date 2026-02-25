@@ -72,9 +72,11 @@
                                                     </div>
                                                 </td>
                                                 <td class="text-end">{{ $detail->qty }}</td>
-                                                <td class="text-end">${{ number_format($detail->harga, 2, ',', '.') }}</td>
                                                 <td class="text-end">
-                                                    ${{ number_format($detail->harga * $detail->qty, 2, ',', '.') }}
+                                                    {{ $transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format($detail->harga, 2, ',', '.') }}
+                                                </td>
+                                                <td class="text-end">
+                                                    {{ $transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format($detail->harga * $detail->qty, 2, ',', '.') }}
                                                 </td>
                                             </tr>
                                         @endforeach
@@ -82,14 +84,16 @@
                                     <tfoot class="fw-semibold text-gray-600">
                                         <tr>
                                             <td colspan="3" class="text-end">Subtotal</td>
-                                            <td class="text-end">${{ number_format($subtotal, 2, ',', '.') }}</td>
+                                            <td class="text-end">
+                                                {{ $transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format($subtotal, 2, ',', '.') }}
+                                            </td>
                                         </tr>
 
                                         <tr>
                                             <td colspan="3" class="text-end">Biaya Ekspedisi
 
                                             <td class="text-end">
-                                                ${{ number_format(optional($transaksi)->shipping_cost ?? 0, 2, ',', '.') }}
+                                                {{ $transaksi->shipping_currency == 'IDR' ? 'Rp' : '$' }}{{ number_format(optional($transaksi)->shipping_cost ?? 0, 2, ',', '.') }}
                                             </td>
                                         </tr>
                                         <tr>
@@ -187,11 +191,11 @@
                             </div>
                         </div>
                         <!--<div class="d-flex justify-content-end mt-5">
-                                                                                <button class="btn btn-danger me-3" data-bs-toggle="modal"
-                                                                                    data-bs-target="#declineModal">Decline</button>
-                                                                                <button class="btn btn-success" data-bs-toggle="modal"
-                                                                                    data-bs-target="#approveModal">Approve</button>
-                                                                            </div>-->
+                                                                                                <button class="btn btn-danger me-3" data-bs-toggle="modal"
+                                                                                                    data-bs-target="#declineModal">Decline</button>
+                                                                                                <button class="btn btn-success" data-bs-toggle="modal"
+                                                                                                    data-bs-target="#approveModal">Approve</button>
+                                                                                            </div>-->
                     </div>
                 </div>
             </div>

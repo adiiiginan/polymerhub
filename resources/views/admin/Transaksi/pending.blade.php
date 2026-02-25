@@ -64,16 +64,25 @@
                                 @foreach ($transaksi as $tr)
                                     <tr id="row-{{ $tr->id }}">
                                         <td>{{ $tr->idtransaksi }}</span></td>
-                                        <td>{{ $tr->user->userDetail->nama ?? 'N/A' }}</td>
+                                        <td>{{ optional($tr->user)->userDetail->nama ?? 'N/A' }}</td>
                                         </td>
-                                        <td>{{ $tr->user->email ?? '-' }}</td>
+                                        <td>{{ optional($tr->user)->email ?? '-' }}</td>
                                         <td>
                                             @php
-                                                $primaryAddress = $tr->user->addresses->firstWhere('is_primary', 1);
+                                                $primaryAddress = optional(optional($tr->user)->addresses)->firstWhere(
+                                                    'is_primary',
+                                                    1,
+                                                );
                                             @endphp
                                             {{ $primaryAddress && $primaryAddress->country ? $primaryAddress->country->country_name : 'N/A' }}
                                         </td>
-                                        <td>$ {{ number_format($tr->total ?? 0, 2, ',', '.') }}</td>
+                                        <td>
+                                            @if (strtoupper($tr->shipping_currency) == 'IDR')
+                                                Rp {{ number_format($tr->total ?? 0, 2, ',', '.') }}
+                                            @else
+                                                $ {{ number_format($tr->total ?? 0, 2, ',', '.') }}
+                                            @endif
+                                        </td>
                                         <td>{{ $tr->created_at->format('d M Y - H:i') }}</td>
                                         <td><span class="badge bg-warning btn-md">Pending</span></td>
                                         <td class="text-end">

@@ -1,6 +1,6 @@
 @extends('id.layouts.app')
 
-@section('title', 'JAYA NIAGA SEMESTA - Innovative Industrial Materials')
+@section('title', 'Polymer-Hub - Innovative Industrial Materials')
 
 @section('content')
     <div class="bg-slate-50 text-slate-800 font-sans">
