@@ -13,4 +13,10 @@ class ArticleController extends Controller
         $articles = Article::latest()->paginate(10);
         return view('id.frontend.white-paper', compact('articles'));
     }
+
+    public function indexen()
+    {
+        $articles = Article::latest()->paginate(10);
+        return view('en.frontend.white-paper', compact('articles'));
+    }
 }

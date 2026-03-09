@@ -1,4 +1,4 @@
-@extends('Admin.dashboard')
+@extends('admin.dashboard')
 
 @section('title', 'Profile Customer')
 
@@ -41,7 +41,7 @@
                                     <!--begin::Title-->
                                     <div
                                         class="d-flex justify-content-between align-items-start flex-wrap mb-2"style="
-                                                                                                                                                                                                                                                                                                                                margin-top: 30px;">
+                                                                                                                                                                                                                                                                                                                                        margin-top: 30px;">
                                         <!--begin::User-->
                                         <div class="d-flex flex-column">
                                             <!--begin::Name-->

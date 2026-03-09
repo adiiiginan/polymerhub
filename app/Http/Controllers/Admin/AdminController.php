@@ -24,7 +24,7 @@ class AdminController extends Controller
 
     public function userDetail($id)
     {
-        $user = User::with('userDetail', 'priviladges', 'stat', 'addresses.city', 'addresses.province', 'transaksi.invoice')->findOrFail($id);
+        $user = User::with('userDetail', 'priviladges', 'stat', 'addresses.city', 'transaksi.invoice')->findOrFail($id);
         return view('Admin.user.detail', compact('user'));
     }
 

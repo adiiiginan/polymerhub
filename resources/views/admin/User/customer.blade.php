@@ -1,4 +1,4 @@
-@extends('Admin.dashboard')
+@extends('admin.dashboard')
 
 @section('title', 'Daftar User')
 

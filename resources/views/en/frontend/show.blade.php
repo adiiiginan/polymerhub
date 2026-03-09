@@ -202,9 +202,9 @@
                  * =============================== */
 
                 function formatPrice(price) {
-                    return new Intl.NumberFormat('id-ID', {
+                    return new Intl.NumberFormat('en-US', {
                         style: 'currency',
-                        currency: 'IDR',
+                        currency: 'USD',
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2
                     }).format(price);
@@ -251,7 +251,7 @@
                     if (!variant) return;
 
                     // PRICE
-                    const price = parseFloat(variant.hargi || 0);
+                    const price = parseFloat(variant.harga || 0);
                     if (price > 0) {
                         priceSpan.textContent = formatPrice(price);
                         addToCartButton.style.display = 'inline-block';

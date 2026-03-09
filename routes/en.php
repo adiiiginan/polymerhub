@@ -50,7 +50,7 @@ Route::prefix('en')->name('en.')->group(function () {
 
     // Produk
     Route::prefix('frontend')->name('frontend.')->group(function () {
-        Route::get('/white-paper', [App\Http\Controllers\Frontend\ArticleController::class, 'index'])->name('white');
+        Route::get('/white-paper', [App\Http\Controllers\Frontend\ArticleController::class, 'indexen'])->name('white');
         Route::get('/brochure', fn() => view('en.frontend.brochure'))->name('brochure');
         Route::get('/contact', fn() => view('en.frontend.contact'))->name('contact');
         Route::get('/produk', [ProductController::class, 'index'])->name('produk');
