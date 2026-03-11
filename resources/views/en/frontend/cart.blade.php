@@ -341,7 +341,7 @@
 
             // Calculate totals here to ensure they are available for the entire view, including JS.
             if ($cartItems && $cartItems->count() > 0) {
-                $subtotal = $cartItems->sum(fn($item) => ($item->price ?? 0) * $item->qty);
+                $subtotal = $cartItems->sum(fn($item) => ($item->harga ?? 0) * $item->qty);
                 $totalGrossWeight = $cartItems->sum(fn($item) => ($item->gros ?? 0) * $item->qty);
                 $total = $subtotal; // Shipping cost will be added via JS
             } else {
@@ -410,13 +410,13 @@
 
                             <!-- Desktop Pricing Info -->
                             <div class="item-price hidden lg:block text-center">
-                                ${{ number_format($item->price ?? 0, 2) }}
+                                ${{ number_format($item->harga ?? 0, 2) }}
                             </div>
                             <div class="item-price hidden lg:block text-center">
                                 {{ $item->qty }}
                             </div>
                             <div class="item-total-price hidden lg:block text-right">
-                                ${{ number_format(($item->price ?? 0) * $item->qty, 2) }}
+                                ${{ number_format(($item->harga ?? 0) * $item->qty, 2) }}
                             </div>
 
 
@@ -465,16 +465,16 @@
 
                         <div class="w-full rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                             <!--<h3 class="text-lg font-semibold text-gray-800 mb-4">Shipping Details</h3>
-                                                                                                                                                                                                                                                                                        <div class="mt-4">
-                                                                                                                                                                                                                                                                                            <label for="destination_zip"
-                                                                                                                                                                                                                                                                                                class="block text-sm font-medium text-gray-700 mb-2">Destination Zip Code</label>
-                                                                                                                                                                                                                                                                                            <div class="flex items-center">
-                                                                                                                                                                                                                                                                                                <input type="text" id="destination_zip" placeholder="Enter zip code"
-                                                                                                                                                                                                                                                                                                    class="form-input w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                                                                                                                                                                                                                                                                                <button id="calculate_shipping"
-                                                                                                                                                                                                                                                                                                    class="ml-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Calculate</button>
-                                                                                                                                                                                                                                                                                            </div>
-                                                                                                                                                                                                                                                                                        </div>-->
+                                                                                                                                                                                                                                                                                                            <div class="mt-4">
+                                                                                                                                                                                                                                                                                                                <label for="destination_zip"
+                                                                                                                                                                                                                                                                                                                    class="block text-sm font-medium text-gray-700 mb-2">Destination Zip Code</label>
+                                                                                                                                                                                                                                                                                                                <div class="flex items-center">
+                                                                                                                                                                                                                                                                                                                    <input type="text" id="destination_zip" placeholder="Enter zip code"
+                                                                                                                                                                                                                                                                                                                        class="form-input w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                                                                                                                                                                                                                                                                                                    <button id="calculate_shipping"
+                                                                                                                                                                                                                                                                                                                        class="ml-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Calculate</button>
+                                                                                                                                                                                                                                                                                                                </div>
+                                                                                                                                                                                                                                                                                                            </div>-->
                             <div class="mt-4">
                                 <label for="shipping" class="block text-sm font-medium text-gray-700 mb-2">Choose Shipping
                                     Service</label>
@@ -484,7 +484,7 @@
                             </div>
                             <input type="hidden" id="customer_zip" value="{{ $defaultAddress->zip_code ?? '' }}">
                             <input type="hidden" id="customer_country" value="{{ $defaultAddress->kode_iso ?? '' }}">
-                            <input type="hidden" id="total_weight" value="{{ number_format($final_gross_weight, 2) }} ">
+                            <input type="hidden" id="total_weight"value="{{ number_format($final_gross_weight, 2) }} ">
                         </div>
 
                         <!-- Order Summary -->

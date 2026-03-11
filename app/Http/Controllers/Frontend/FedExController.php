@@ -41,7 +41,7 @@ class FedExController extends Controller
             $token = FedexToken::first();
 
             // Check if token exists and is not expired (with a 5-minute buffer)
-            if (!$token || now()->gte($token->updated_at->addSeconds($token->expires_in - 300))) {
+            if (!$token || now()->gte($token->updated_at->addSeconds((int)$token->expires_in - 300))) {
                 $response = Http::asForm()->post($this->api_url . '/oauth/token', [
                     'grant_type' => 'client_credentials',
                     'client_id' => $this->client_id,
@@ -81,7 +81,8 @@ class FedExController extends Controller
     public function getRates(Request $request)
     {
         try {
-            Log::info('FedEx getRates method called.'); // Tambahkan log di sini
+            Log::info('FedEx getRates method called.');
+            Log::info('Request data:', $request->all());
 
             // Validasi input
             $validated = $request->validate([
@@ -126,11 +127,9 @@ class FedExController extends Controller
                 "countryCode" => $validated['destinationCountry'],
                 "city" => $validated['destinationCity']
             ];
-            //$aseanCountryCodes = ['BN', 'KH', 'ID', 'LA', 'MY', 'MM', 'PH', 'SG', 'TH', 'VN'];
-
-            //if (!empty($validated['state']) && !in_array($validated['countryCode'], $aseanCountryCodes)) {
-            //  $recipientAddress['stateOrProvinceCode'] = $validated['state'];
-            //   }
+            // if (!empty($validated['state'])) {
+            //     $recipientAddress['stateOrProvinceCode'] = $validated['state'];
+            // }
 
             $payload = [
                 "accountNumber" => ["value" => $this->account_number],
@@ -183,6 +182,8 @@ class FedExController extends Controller
             $response = Http::withToken($token)
                 ->withHeaders(['Content-Type' => 'application/json'])
                 ->post($url, $payload);
+
+            Log::info('FedEx response:', ['response' => $response->json()]);
 
             // Log ke fedex_log
             FedexLog::create([

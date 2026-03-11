@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Str;
 
 class CartController extends Controller
@@ -159,7 +160,7 @@ class CartController extends Controller
         return response()->json(['success' => true, 'message' => 'Address selected successfully.']);
     }
 
-    public function getShippingRate(Request $request)
+    public function getShippingRate(Request $request, FedExController $fedExController)
     {
         $customer = Auth::guard('customer')->user();
         if (!$customer) {
@@ -179,8 +180,32 @@ class CartController extends Controller
         $cart->address_id = $address->id;
         $cart->save();
 
-        $total_weight = $cart->items->sum(fn($item) => $item->gros * $item->qty);
-        $subtotal = $cart->items->sum(fn($item) => $item->harga * $item->qty);
+        try {
+            $total_weight = $cart->items->sum(function ($item) {
+                return (float)($item->gros ?? 0);
+            });
+            $subtotal = $cart->items->sum(function ($item) {
+                return (float)($item->harga ?? 0) * (int)($item->qty ?? 0);
+            });
+        } catch (\Throwable $e) {
+            Log::error('Error calculating total weight or subtotal in CartController', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['error' => 'Error calculating shipping costs.'], 500);
+        }
+
+        Log::info('FEDEX DEBUG', [
+            'items' => $cart->items->map(function ($item) {
+                return [
+                    'gros' => $item->gros,
+                    'qty' => $item->qty,
+                    'harga' => $item->harga
+                ];
+            }),
+        ]);
 
         $shippingRequest = new Request([
             'destinationZip' => $address->zip_code,
@@ -193,8 +218,7 @@ class CartController extends Controller
             'items' => $cart->items->toArray()
         ]);
 
-        $fedexController = new FedExController();
-        $shippingResponse = $fedexController->getRates($shippingRequest);
+        $shippingResponse = $fedExController->getRates($shippingRequest);
 
         if ($shippingResponse->isSuccessful()) {
             return response()->json($shippingResponse->getData(true));
@@ -242,82 +266,131 @@ class CartController extends Controller
             'product_stok_id' => 'required|exists:produk_stok,id',
         ]);
 
-        try {
-            $variant = DB::table('produk_stok')->find($request->product_stok_id);
+        $variant = DB::table('produk_stok')->find($request->product_stok_id);
 
-            if (!$variant) {
-                return response()->json(['success' => false, 'message' => 'Product variant not found.']);
-            }
+        if (!$variant) {
+            return response()->json(['message' => 'Product variant not found.'], 404);
+        }
 
-            if ($variant->stok < $request->qty) {
-                return response()->json(['success' => false, 'message' => 'Insufficient stock for the requested quantity.']);
-            }
+        $product = Produk::findOrFail($variant->id_produk);
 
-            $product = \App\Models\Produk::findOrFail($variant->id_produk);
-            $price = (session('user_country') == 'ID') ? $variant->harga : $variant->hargi;
+        if (request()->segment(1) == 'en') {
+            $price = (float) ($variant->harga ?? 0);
+        } else {
+            $price = (float) ($variant->hargi ?? 0);
+        }
 
-            if (Auth::guard('customer')->check()) {
-                $customer = Auth::guard('customer')->user();
-                $cart = \App\Models\Cart::firstOrCreate(
-                    ['iduser' => $customer->id, 'status' => 1],
-                    ['iduser' => $customer->id, 'status' => 1]
+        if (Auth::guard('customer')->check()) {
+            DB::beginTransaction();
+            try {
+                $user = Auth::guard('customer')->user();
+                $cart = Cart::firstOrCreate(
+                    ['iduser' => $user->id, 'status' => 1],
+                    ['total' => 0.00]
                 );
 
-                $cartItemQuery = \App\Models\CartItem::where('idcart', $cart->id)
-                    ->where('idproduk', $product->id)
-                    ->where('id_jenis', $variant->id_jenis);
-
-                if ($variant->id_ukuran) {
-                    $cartItemQuery->where('id_ukuran', $variant->id_ukuran);
-                } else {
-                    $cartItemQuery->whereNull('id_ukuran');
-                }
-                $cartItem = $cartItemQuery->first();
-
-
-                if ($cartItem) {
-                    $cartItem->qty += $request->qty;
-                    $cartItem->save();
-                } else {
-                    \App\Models\CartItem::create([
+                $item = CartItem::firstOrCreate(
+                    [
                         'idcart' => $cart->id,
-                        'idproduk' => $product->id,
+                        'idproduk' => $variant->id_produk,
                         'id_jenis' => $variant->id_jenis,
                         'id_ukuran' => $variant->id_ukuran,
-                        'qty' => $request->qty,
+                    ],
+                    [
+                        'qty' => 0,
                         'harga' => $price,
-                        'gros' => $variant->weight,
-                    ]);
-                }
-            } else {
-                $cart = session()->get('cart', []);
-                $cartItemId = $variant->id;
+                        'weight' => $variant->weight ?? 0,
+                        'length' => $variant->length ?? 0,
+                        'width' => $variant->width ?? 0,
+                        'height' => $variant->height ?? 0,
+                        'gros' => 0,
+                    ]
+                );
 
-                if (isset($cart[$cartItemId])) {
-                    $cart[$cartItemId]['qty'] += $request->qty;
+                if ($item->wasRecentlyCreated) {
+                    $item->qty = (int) $request->qty;
                 } else {
-                    $cart[$cartItemId] = [
-                        "product_stok_id" => $variant->id,
-                        "name" => $product->nama,
-                        "qty" => $request->qty,
-                        "price" => $price,
-                        "weight" => $variant->weight,
-                        "photo" => $product->gambar,
-                        "id_jenis" => $variant->id_jenis,
-                        "id_ukuran" => $variant->id_ukuran,
-                        "id_produk" => $product->id,
-                    ];
+                    $item->qty += (int) $request->qty;
                 }
-                session()->put('cart', $cart);
+                $item->harga = $price;
+
+                $item_weight = (float)($variant->weight ?? 0);
+                $item_length = (float)($variant->length ?? 0);
+                $item_width  = (float)($variant->width ?? 0);
+                $item_height = (float)($variant->height ?? 0);
+                $packing_weight = 0.5;
+
+                // Calculate total actual and dimensional weight for the entire quantity
+                $total_actual_weight = $item_weight * $item->qty;
+                $total_volume = ($item_length * $item_width * $item_height) * $item->qty;
+                $total_dimensional_weight = $total_volume / 5000;
+
+                // Billable weight is the greater of the two
+                $billable_weight = max($total_actual_weight, $total_dimensional_weight);
+
+                // Add packing weight and round
+                $final_gross_weight = round($billable_weight + $packing_weight, 2);
+
+                $item->gros = $final_gross_weight;
+                $item->save();
+
+                $this->updateCartTotal($cart);
+                DB::commit();
+
+                return response()->json(['success' => true, 'message' => 'Produk Berhasil ditambahkan.']);
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                Log::error($e->getMessage());
+                return response()->json(['message' => 'Failed to add product to cart.'], 500);
             }
+        } else {
+            $cart_session = session()->get('cart', []);
+            $cartKey = $variant->id;
 
+            $currentQty = isset($cart_session[$cartKey]) ? $cart_session[$cartKey]['qty'] : 0;
+            $new_total_qty = $currentQty + (int) $request->qty;
 
-            return response()->json(['success' => true, 'message' => 'Product added to cart successfully.']);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json(['success' => false, 'message' => 'Product not found.']);
-        } catch (\Exception $e) {
-            Log::error('Error adding to cart: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Failed to add product to cart. Please try again.']);
+            $jenis = DB::table('produk_jenis')->where('id', $variant->id_jenis)->first();
+            $ukuran = DB::table('produk_ukuran')->where('id', $variant->id_ukuran)->first();
+
+            $item_weight = (float) ($variant->weight ?? 0);
+            $item_length = (float) ($variant->length ?? 0);
+            $item_width  = (float) ($variant->width ?? 0);
+            $item_height = (float) ($variant->height ?? 0);
+            $packing_weight = 0.5;
+
+            // Calculate total actual and dimensional weight for the entire quantity
+            $total_actual_weight = $item_weight * $new_total_qty;
+            $total_volume = ($item_length * $item_width * $item_height) * $new_total_qty;
+            $total_dimensional_weight = $total_volume / 5000;
+
+            // Billable weight is the greater of the two
+            $billable_weight = max($total_actual_weight, $total_dimensional_weight);
+
+            // Add packing weight and round
+            $final_gross_weight = round($billable_weight + $packing_weight, 2);
+
+            $cart_session[$cartKey] = [
+                'idproduk' => $product->id,
+                'id_jenis' => $variant->id_jenis,
+                'id_ukuran' => $variant->id_ukuran,
+                'product_stok_id' => $variant->id,
+                'name' => $product->nama_produk,
+                'jenis_name' => $jenis ? $jenis->jenis : null,
+                'ukuran_name' => $ukuran ? $ukuran->nama_ukuran : null,
+                'qty' => $new_total_qty,
+                'price' => $price,
+                'image' => $product->gambar,
+                'weight' => $item_weight,
+                'length' => $item_length,
+                'width' => $item_width,
+                'height' => $item_height,
+                'gros' => $final_gross_weight,
+            ];
+
+            session()->put('cart', $cart_session);
+
+            return response()->json(['success' => true, 'message' => 'Produk Berhasil ditambahkan.']);
         }
     }
 

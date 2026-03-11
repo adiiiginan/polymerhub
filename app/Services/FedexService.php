@@ -24,6 +24,13 @@ class FedexService
         } else {
             $this->apiUrl = config('services.fedex.live_url');
         }
+
+        Log::info('FedexService constructed', [
+            'client_id' => $this->clientId,
+            'client_secret' => substr($this->clientSecret, 0, 5) . '...',
+            'mode' => config('services.fedex.mode'),
+            'api_url' => $this->apiUrl
+        ]);
     }
 
     public function getAccessToken(): string
@@ -230,7 +237,7 @@ class FedexService
                         "weight" => [
                             "units" => "KG",
                             "value" => $transaksi->details->sum(function ($detail) {
-                                return $detail->gros * $detail->qty;
+                                return $detail->gros;
                             })
                         ]
                     ]
@@ -273,6 +280,83 @@ class FedexService
         }
 
         return null;
+    }
+
+    public function getRates(array $data)
+    {
+        try {
+            Log::info('FedexService->getRates: Start', ['data' => $data]);
+            // Validasi dan casting berat total
+            $totalWeight = (float) ($data['totalWeight'] ?? 0);
+            Log::info('FedexService->getRates: Total weight calculated', ['totalWeight' => $totalWeight]);
+
+            $accessToken = $this->getAccessToken();
+            Log::info('FedexService->getRates: Access token retrieved');
+
+            $payload = [
+                'accountNumber' => [
+                    'value' => config('services.fedex.account_number')
+                ],
+                'requestedShipment' => [
+                    'shipper' => [
+                        'address' => [
+                            'postalCode' => config('services.fedex.shipper.postal_code'),
+                            'countryCode' => config('services.fedex.shipper.country_code')
+                        ]
+                    ],
+                    'recipient' => [
+                        'address' => [
+                            'postalCode' => $data['destinationZip'],
+                            'countryCode' => $data['destinationCountry']
+                        ]
+                    ],
+                    'requestedPackageLineItems' => [
+                        [
+                            'weight' => [
+                                'units' => 'KG',
+                                'value' => $totalWeight
+                            ]
+                        ]
+                    ]
+                ]
+            ];
+            Log::info('FedexService->getRates: Payload built', ['payload' => $payload]);
+
+            Log::info('FEDEX RATE REQUEST', [
+                'destinationZip' => $data['destinationZip'],
+                'country' => $data['destinationCountry'],
+                'weight' => $totalWeight,
+            ]);
+
+            $response = Http::withToken($accessToken)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->timeout(60)
+                ->post("{$this->apiUrl}/rate/v1/rates/quotes", $payload);
+            Log::info('FedexService->getRates: API call made');
+
+            $this->logRequest('rate/v1/rates/quotes', $payload, $response);
+            Log::info('FedexService->getRates: Request logged');
+
+            if ($response->failed()) {
+                Log::error('FedexService->getRates: API call failed.', ['response' => $response->body()]);
+                $response->throw();
+            }
+
+            $rates = $response->json('output.rateReplyDetails');
+            Log::info('FedexService->getRates: Rates received.', ['rates' => $rates]);
+
+            return $rates;
+        } catch (\Throwable $e) {
+            Log::error('Exception caught in FedexService->getRates!', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(), // Full stack trace
+            ]);
+
+            // Re-throw the exception to let the controller handle the final response
+            throw $e;
+        }
     }
 
     public function uploadCommercialInvoice(string $trackingNumber, string $relativeFilePath)

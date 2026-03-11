@@ -140,3 +140,13 @@ Route::post('/cart/save-shipping-details', [CartController::class, 'saveShipping
 Route::get('/', function () {
     return view('welcome');
 })->name('welcome');
+
+
+use Spatie\Sitemap\SitemapGenerator;
+
+Route::get('/sitemap.xml', function () {
+    SitemapGenerator::create('https://polymer-hub.com')
+        ->writeToFile(public_path('sitemap.xml'));
+
+    return response()->file(public_path('sitemap.xml'));
+});
