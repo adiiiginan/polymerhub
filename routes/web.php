@@ -3,7 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Frontend\RegisterController;
 use App\Http\Controllers\Auth\LoginController;
-
+use Illuminate\Support\Facades\DB;
+use Spatie\Sitemap\SitemapGenerator;
 use App\Http\Controllers\Customer\DashboardController;
 
 
@@ -141,12 +142,6 @@ Route::get('/', function () {
     return view('welcome');
 })->name('welcome');
 
+use App\Http\Controllers\SitemapController;
 
-use Spatie\Sitemap\SitemapGenerator;
-
-Route::get('/sitemap.xml', function () {
-    SitemapGenerator::create('https://polymer-hub.com')
-        ->writeToFile(public_path('sitemap.xml'));
-
-    return response()->file(public_path('sitemap.xml'));
-});
+Route::get('/sitemap.xml', [SitemapController::class, 'index']);
