@@ -11,7 +11,7 @@ class SitemapController extends Controller
     public function index()
     {
         // Ambil data produk. Pastikan nama kolom sudah sesuai.
-        $products = DB::table('produk')->orderBy('updated_at', 'desc')->get(['slug', 'updated_at']);
+        $products = DB::table('produk')->where('status_aktif', 1)->orderBy('updated_at', 'desc')->get(['nama_produk', 'updated_at']);
 
         // Ambil data artikel.
         $articles = DB::table('articles')->orderBy('updated_at', 'desc')->get(['judul', 'updated_at']);

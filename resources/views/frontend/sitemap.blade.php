@@ -12,7 +12,7 @@
     {{-- Halaman Produk --}}
     @foreach ($products as $product)
         <url>
-            <loc>{{ url('/product/' . $product->slug) }}</loc>
+            <loc>{{ url('/product/' . Illuminate\Support\Str::slug($product->nama_produk)) }}</loc>
             <lastmod>{{ \Carbon\Carbon::parse($product->updated_at)->toAtomString() }}</lastmod>
             <priority>0.9</priority>
         </url>
