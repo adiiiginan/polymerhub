@@ -14,7 +14,7 @@ class SitemapController extends Controller
         $products = DB::table('produk')->where('status_aktif', 1)->orderBy('updated_at', 'desc')->get(['nama_produk', 'updated_at']);
 
         // Ambil data artikel.
-        $articles = DB::table('articles')->orderBy('updated_at', 'desc')->get(['judul', 'updated_at']);
+        $articles = DB::table('article')->orderBy('updated_at', 'desc')->get(['judul', 'updated_at']);
 
         // Halaman statis
         $staticPages = [
