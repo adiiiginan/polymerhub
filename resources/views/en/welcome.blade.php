@@ -13,9 +13,9 @@
                         The Future of High-Performance Materials is Here.
                     </h1>
                     <p class="mt-6 text-lg text-slate-600">
-                        We engineer and supply advanced polymer components that push the boundaries of performance in
-                        aerospace, automotive, and industrial applications.
-                    </p>
+                        As an authorized and trusted distributor, we deliver advanced polymer components from leading global
+                        manufacturers, providing high-performance solutions for aerospace, automotive, and industrial
+                        applications.
                     <div class="mt-10 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
                         <a href="#products"
                             class="inline-block bg-teal-600 text-white font-semibold px-8 py-3 rounded-lg shadow-md hover:bg-teal-700 transition-all duration-300 transform hover:-translate-y-1">

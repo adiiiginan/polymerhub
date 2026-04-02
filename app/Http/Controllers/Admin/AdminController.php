@@ -25,7 +25,7 @@ class AdminController extends Controller
     public function userDetail($id)
     {
         $user = User::with('userDetail', 'priviladges', 'stat', 'addresses.city', 'transaksi.invoice')->findOrFail($id);
-        return view('Admin.user.detail', compact('user'));
+        return view('admin.user.detail', compact('user'));
     }
 
     public function updateUserStatus(Request $request)
@@ -72,7 +72,7 @@ class AdminController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('Admin.User.verified', compact('users'));
+        return view('admin.User.verified', compact('users'));
     }
 
     public function index()

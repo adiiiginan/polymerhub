@@ -394,6 +394,89 @@ class CartController extends Controller
         }
     }
 
+    public function checkout(Request $request)
+    {
+        try {
+            $customer = Auth::guard('customer')->user();
+            if (!$customer) {
+                return response()->json(['success' => false, 'error' => 'Please login to checkout.'], 401);
+            }
+
+            $cart = Cart::where('iduser', $customer->id)
+                ->where('status', 1)
+                ->with('items')
+                ->first();
+
+            if (!$cart || $cart->items->isEmpty()) {
+                return response()->json(['success' => false, 'error' => 'Your cart is empty.'], 400);
+            }
+
+            if (is_null($cart->address_id)) {
+                return response()->json(['success' => false, 'error' => 'Please select a shipping address before checkout.'], 400);
+            }
+
+            if (is_null($cart->shipping_cost) || is_null($cart->shipping_service)) {
+                return response()->json(['success' => false, 'error' => 'Please select a shipping option before checkout.'], 400);
+            }
+
+            DB::beginTransaction();
+
+            $subtotal = $cart->items->sum(fn($item) => $item->harga * $item->qty);
+            $total    = $subtotal + $cart->shipping_cost;
+            $idtransaksi = 'TRX-' . strtoupper(Str::random(10));
+
+            $transaksi = Transaksi::create([
+                'idtransaksi'       => $idtransaksi,
+                'iduser'            => $customer->id,
+                'status'            => 1,
+                'subtotal'          => $subtotal,
+                'shipping_cost'     => $cart->shipping_cost,
+                'shipping_service'  => $cart->shipping_service,
+                'shipping_currency' => 'USD',
+                'address_id'        => $cart->address_id,
+                'total'             => $total,
+                'expedisi'          => 'FedEx',
+            ]);
+
+            foreach ($cart->items as $item) {
+                TransaksiDetail::create([
+                    'idtrans'   => $transaksi->id,
+                    'iduser'    => $customer->id,
+                    'idproduk'  => $item->idproduk,
+                    'qty'       => $item->qty,
+                    'harga'     => $item->harga,
+                    'total'     => $item->harga * $item->qty,
+                    'gros'      => $item->gros,
+                    'id_jenis'  => $item->id_jenis,
+                    'id_ukuran' => $item->id_ukuran,
+                    'subtotal'  => $item->harga * $item->qty,
+                ]);
+            }
+
+            $cart->status = 2;
+            $cart->save();
+
+            session(['latest_transaksi_id' => $transaksi->id]);
+
+            DB::commit();
+
+            return response()->json([
+                'success'      => true,
+                'redirect_url' => route('en.transaksi', $transaksi->id)
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('EN Checkout error: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error'   => 'An error occurred during checkout. Please try again.'
+            ], 500);
+        }
+    }
 
     public function storeLion(Request $request)
     {

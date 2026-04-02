@@ -465,16 +465,16 @@
 
                         <div class="w-full rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                             <!--<h3 class="text-lg font-semibold text-gray-800 mb-4">Shipping Details</h3>
-                                                                                                                                                                                                                                                                                                            <div class="mt-4">
-                                                                                                                                                                                                                                                                                                                <label for="destination_zip"
-                                                                                                                                                                                                                                                                                                                    class="block text-sm font-medium text-gray-700 mb-2">Destination Zip Code</label>
-                                                                                                                                                                                                                                                                                                                <div class="flex items-center">
-                                                                                                                                                                                                                                                                                                                    <input type="text" id="destination_zip" placeholder="Enter zip code"
-                                                                                                                                                                                                                                                                                                                        class="form-input w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                                                                                                                                                                                                                                                                                                    <button id="calculate_shipping"
-                                                                                                                                                                                                                                                                                                                        class="ml-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Calculate</button>
-                                                                                                                                                                                                                                                                                                                </div>
-                                                                                                                                                                                                                                                                                                            </div>-->
+                                                                                                                                                                                                                                                                                                                    <div class="mt-4">
+                                                                                                                                                                                                                                                                                                                        <label for="destination_zip"
+                                                                                                                                                                                                                                                                                                                            class="block text-sm font-medium text-gray-700 mb-2">Destination Zip Code</label>
+                                                                                                                                                                                                                                                                                                                        <div class="flex items-center">
+                                                                                                                                                                                                                                                                                                                            <input type="text" id="destination_zip" placeholder="Enter zip code"
+                                                                                                                                                                                                                                                                                                                                class="form-input w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                                                                                                                                                                                                                                                                                                            <button id="calculate_shipping"
+                                                                                                                                                                                                                                                                                                                                class="ml-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Calculate</button>
+                                                                                                                                                                                                                                                                                                                        </div>
+                                                                                                                                                                                                                                                                                                                    </div>-->
                             <div class="mt-4">
                                 <label for="shipping" class="block text-sm font-medium text-gray-700 mb-2">Choose Shipping
                                     Service</label>
@@ -758,7 +758,15 @@
             const checkoutForm = document.getElementById('checkout-form');
             if (checkoutForm) {
                 checkoutForm.addEventListener('submit', function(e) {
-                    e.preventDefault(); // Prevent default form submission
+                    e.preventDefault();
+
+                    // Validasi shipping sudah dipilih
+                    const selectedShipping = document.querySelector(
+                        'input[name="shipping_option"]:checked');
+                    if (!selectedShipping) {
+                        alert('Please select a shipping option before proceeding to checkout.');
+                        return;
+                    }
 
                     const checkoutButton = this.querySelector('button[type="submit"]');
                     checkoutButton.disabled = true;

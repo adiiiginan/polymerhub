@@ -72,5 +72,3 @@ Route::prefix('en')->name('en.')->group(function () {
     Route::post('/get-fedex-rates', [\App\Http\Controllers\Frontend\FedExController::class, 'getRates'])->name('get-fedex-rates');
     Route::post('/validation', [\App\Http\Controllers\Frontend\FedExController::class, 'validateAddress'])->name('validation');
 });
-
-Route::post('customer/logout', [App\Http\Controllers\Auth\LoginController::class, 'logout'])->name('customer.logout')->middleware('auth:customer');

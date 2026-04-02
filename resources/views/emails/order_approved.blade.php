@@ -17,7 +17,13 @@
                     <li><strong>Customer:</strong> {{ $transaksi->user->userDetail->nama ?? $transaksi->user->username }}
                     </li>
                     <li><strong>Email Customer:</strong> {{ $transaksi->user->email }}</li>
-                    <li><strong>Total:</strong> Rp {{ number_format($transaksi->total, 2, ',', '.') }}</li>
+                    <li><strong>Total:</strong>
+                        @if ($transaksi->shipping_currency == 'USD')
+                            $ {{ number_format($transaksi->total, 2, '.', ',') }}
+                        @else
+                            Rp {{ number_format($transaksi->total, 2, ',', '.') }}
+                        @endif
+                    </li>
                     <li><strong>Kode PO:</strong> {{ $transaksi->kode_po }}</li>
                     <li><strong>Tanggal:</strong> {{ $transaksi->created_at->format('d M Y H:i') }}</li>
                 </ul>
