@@ -25,7 +25,6 @@
 
         .cart-items-header {
             display: none;
-            /* Hidden on mobile by default */
         }
 
         .cart-item {
@@ -33,7 +32,6 @@
             border-bottom: 1px solid #e5e7eb;
             display: flex;
             flex-direction: column;
-            /* Stack items vertically on mobile */
             gap: 15px;
         }
 
@@ -297,12 +295,10 @@
                 gap: 15px;
                 padding: 20px 30px;
                 flex-direction: row;
-                /* Horizontal layout on desktop */
             }
 
             .item-pricing-info {
                 display: contents;
-                /* Let grid handle layout */
             }
 
             .item-price,
@@ -321,6 +317,7 @@
         <div class="breadcrumb">
             <a href="{{ route('id.frontend.produk') }}">Home</a> > Shopping Cart
         </div>
+
         @if ($noAddress ?? false)
             <div class="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded mb-6">
                 ⚠️ Anda belum memiliki alamat pengiriman.
@@ -337,7 +334,6 @@
         @endif
 
         @php
-            // Standardize cart items for both logged-in users and guests
             $cartItems = null;
             if (Auth::guard('customer')->check() && isset($cart)) {
                 $cartItems = $cart->items;
@@ -347,20 +343,22 @@
                 });
             }
 
-            // Calculate totals here to ensure they are available for the entire view, including JS.
             $subtotal = 0;
             $final_gross_weight = 0;
             $initialShippingCost = 0;
             $initialShippingService = null;
 
             if ($cartItems && $cartItems->count() > 0) {
-                $subtotal = $cartItems->sum(fn($item) => ($item->price ?? 0) * $item->qty);
-                $final_gross_weight = $cartItems->sum(fn($item) => ($item->gros ?? 0) * $item->qty);
-
-                // For logged-in users, get pre-selected shipping info from the cart object
                 if (Auth::guard('customer')->check() && isset($cart)) {
+                    // User login: pakai kolom harga dari DB
+                    $subtotal = $cartItems->sum(fn($item) => ($item->harga ?? 0) * $item->qty);
+                    $final_gross_weight = $cartItems->sum(fn($item) => $item->gros ?? 0);
                     $initialShippingCost = $cart->shipping_cost ?? 0;
                     $initialShippingService = $cart->shipping_service;
+                } else {
+                    // Guest: pakai kolom price dari session
+                    $subtotal = $cartItems->sum(fn($item) => ($item->price ?? 0) * $item->qty);
+                    $final_gross_weight = $cartItems->sum(fn($item) => $item->gros ?? 0);
                 }
             }
 
@@ -378,15 +376,14 @@
                     <!-- Desktop Header -->
                     <div class="cart-items-header">
                         <div class="text-left">Product</div>
-                        <div class="text-center"style="margin-left: -73px;">Price</div>
-                        <div class="text-center"style="margin-left: -103px;">Quantity</div>
-                        <div class="text-right"style="margin-right: 95px;">Total</div>
-                        <div></div> <!-- For remove button -->
+                        <div class="text-center" style="margin-left: -73px;">Price</div>
+                        <div class="text-center" style="margin-left: -103px;">Quantity</div>
+                        <div class="text-right" style="margin-right: 95px;">Total</div>
+                        <div></div>
                     </div>
 
                     @foreach ($cartItems as $item)
                         <div class="cart-item">
-                            <!-- Product Details (Image and Name) -->
                             <div class="item-main-info">
                                 <div class="item-image">
                                     @php
@@ -396,6 +393,9 @@
                                         $productName = Auth::guard('customer')->check()
                                             ? $item->produk->nama_produk
                                             : $item->name;
+                                        $itemPrice = Auth::guard('customer')->check()
+                                            ? $item->harga ?? 0
+                                            : $item->price ?? 0;
                                     @endphp
                                     @if ($image)
                                         <img src="{{ asset('backend/assets/media/produk/' . $image) }}"
@@ -421,23 +421,17 @@
                                 </div>
                             </div>
 
-                            <!-- Mobile Pricing Info -->
-
-                            <!-- Desktop Pricing Info -->
                             <div class="item-price hidden lg:block text-center">
-                                Rp. {{ number_format($item->price ?? 0, 2) }}
+                                Rp. {{ number_format($itemPrice, 2) }}
                             </div>
                             <div class="item-quantity hidden lg:flex items-center justify-center"
                                 style="margin-left: -10px;">
-
                                 <span class="quantity-value mx-2">{{ $item->qty }}</span>
-
                             </div>
                             <div class="item-total-price hidden lg:block text-right">
-                                Rp. {{ number_format(($item->price ?? 0) * $item->qty, 2) }}
+                                Rp. {{ number_format($itemPrice * $item->qty, 2) }}
                             </div>
 
-                            <!-- Remove Button -->
                             <div class="remove-btn-wrapper">
                                 <form action="{{ route('id.frontend.cart.remove', $item->id) }}" method="POST">
                                     @csrf
@@ -449,11 +443,13 @@
                     @endforeach
                 </div>
 
-                <!-- Right Column: Expedition and Summary -->
+                <!-- Right Column -->
                 <div class="cart-summary-col">
                     @if (
                         (Auth::guard('customer')->check() && $cart && $cart->items->count()) ||
                             (session()->has('cart') && collect(session('cart'))->count() > 0))
+
+                        <!-- Shipping Address -->
                         <div class="w-full rounded-lg border border-gray-200 bg-white p-6 shadow-sm mb-6">
                             <h3 class="text-lg font-semibold text-gray-800 mb-4">Shipping Address</h3>
                             @if ($allAddresses->isNotEmpty())
@@ -464,7 +460,7 @@
                                         class="form-input w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 py-3">
                                         @foreach ($allAddresses as $address)
                                             <option value="{{ $address->id }}" data-zip="{{ $address->zip_code }}"
-                                                {{ session('selected_address_id') == $address->id ? 'selected' : '' }}>
+                                                {{ (isset($primaryAddress) && $primaryAddress->id == $address->id) || session('selected_address_id') == $address->id ? 'selected' : '' }}>
                                                 {{ $address->alamat }}, {{ $address->city }},
                                                 {{ $address->state }} {{ $address->zip_code }},
                                                 {{ $address->kode_iso }}
@@ -473,25 +469,24 @@
                                     </select>
                                 </div>
                             @else
-                                <p class="text-sm text-gray-600">You have no saved addresses. Please <a href="#"
-                                        class="text-blue-600 hover:underline">add an address</a> to your profile.</p>
+                                <p class="text-sm text-gray-600">Anda belum memiliki alamat. Silakan
+                                    <a href="{{ route('id.customer.address.create') }}"
+                                        class="text-blue-600 hover:underline">tambah alamat</a>.
+                                </p>
                             @endif
                         </div>
 
-                        <!-- Shipping Details -->
+                        <!-- Shipping Options -->
                         <div class="w-full rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
                             <h3 class="text-lg font-semibold text-gray-800 mb-4">Opsi Pengiriman</h3>
                             <div id="shipping-options-container" class="mt-2 space-y-3">
-                                {{-- Opsi pengiriman akan diisi oleh AJAX --}}
+                                <p class="text-sm text-gray-500">Pilih alamat untuk melihat opsi pengiriman.</p>
                             </div>
                             <div id="shipping-loader" style="display: none; margin-top: 15px; text-align: center;">
-                                <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                                <p class="mt-2">Menghitung ongkos kirim...</p>
+                                <p class="mt-2 text-sm text-gray-500">Menghitung ongkos kirim...</p>
                             </div>
-                            <input type="hidden" id="total_weight"
-                                value="{{ number_format($final_gross_weight, 2, ',', '.') }}">
+                            {{-- Format tanpa koma agar parseFloat JS bekerja benar --}}
+                            <input type="hidden" id="total_weight" value="{{ $final_gross_weight }}">
                         </div>
 
                         <!-- Order Summary -->
@@ -505,7 +500,7 @@
                             </div>
                             <div class="total-row">
                                 <span>Subtotal ({{ $cartItems->sum('qty') }} items)</span>
-                                <span>Rp. {{ number_format($subtotal, 2) }}</span>
+                                <span>Rp. {{ number_format($subtotal, 0, ',', '.') }}</span>
                             </div>
                             <div class="total-row">
                                 <span>Ongkos Kirim</span>
@@ -525,7 +520,6 @@
                 </div>
             </div>
         @else
-            <!-- Empty Cart -->
             <div class="empty-cart">
                 <h3>Keranjang belanja Anda kosong</h3>
                 <p>Sepertinya Anda belum menambahkan produk apa pun ke keranjang.</p>
@@ -537,191 +531,271 @@
 
 @push('scripts')
     <script>
-        $(document).ready(function() {
-            $.ajaxSetup({
-                headers: {
-                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                }
-            });
+        document.addEventListener('DOMContentLoaded', function() {
 
-            const csrfToken = '{{ csrf_token() }}';
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
             const subtotal = parseFloat('{{ $subtotal ?? 0 }}');
             let selectedShippingCost = parseFloat('{{ $initialShippingCost ?? 0 }}');
             let selectedShippingService = '{{ $initialShippingService ?? '' }}';
 
+            /* ===============================
+             * HELPERS
+             * =============================== */
             function formatRupiah(number) {
-                return 'Rp. ' + number.toLocaleString('id-ID');
+                return 'Rp. ' + Math.round(number).toLocaleString('id-ID');
             }
 
             function updateSummary() {
                 const total = subtotal + selectedShippingCost;
-                $('#shipping-cost').text(formatRupiah(selectedShippingCost));
-                $('#cart-total').text(formatRupiah(total));
+                document.getElementById('shipping-cost').textContent = formatRupiah(selectedShippingCost);
+                document.getElementById('cart-total').textContent = formatRupiah(total);
             }
 
+            /* ===============================
+             * FETCH SHIPPING RATES
+             * =============================== */
             function fetchShippingRates(addressId) {
-                const weight = parseFloat($('#total_weight').val());
+                const weight = parseFloat(document.getElementById('total_weight').value);
+
+                console.log('fetchShippingRates called — addressId:', addressId, '| weight:', weight);
+
                 if (!addressId || weight <= 0) {
-                    $('#shipping-options-container').html(
-                        '<p class="text-sm text-gray-500">Pilih alamat untuk melihat opsi pengiriman.</p>');
+                    document.getElementById('shipping-options-container').innerHTML =
+                        '<p class="text-sm text-gray-500">Pilih alamat untuk melihat opsi pengiriman.</p>';
                     return;
                 }
 
-                $('#shipping-loader').show();
-                $('#shipping-options-container').empty();
+                document.getElementById('shipping-loader').style.display = 'block';
+                document.getElementById('shipping-options-container').innerHTML = '';
 
-                $.post('{{ route('id.frontend.lionparcel.get-services') }}', {
-                    address_id: addressId,
-                    weight: weight
-                }, function(res) {
-                    $('#shipping-loader').hide();
-                    if (res.success && res.data.length > 0) {
-                        let html = '<div class="space-y-3">';
-                        res.data.forEach(service => {
-                            const isChecked = service.serviceCode == selectedShippingService ?
-                                'checked' : '';
-                            const labelClasses = service.serviceCode == selectedShippingService ?
-                                'border-blue-500 bg-blue-50' : '';
-                            html += `
-                               <label class="flex justify-between border p-3 rounded-lg cursor-pointer hover:border-blue-500 transition-all shipping-option-label ${labelClasses}">
-        <div class="flex items-center">
-            <input type="radio" name="shipping_option" class="mr-3"
-                   value="${service.serviceCode}"
-                   data-cost="${service.price}" ${isChecked}>
-            <div>
-                <div class="font-medium">${service.serviceName}</div>
-                <div class="text-xs text-gray-500">
-                    ${service.etd ? 'Estimasi: ' + service.etd : 'Estimasi belum tersedia'}
-                </div>
-            </div>
-        </div>
-        <div class="font-semibold">${formatRupiah(service.price)}</div>
-    </label>
-                            `;
-                        });
-                        html += '</div>';
-                        $('#shipping-options-container').html(html);
-                    } else {
-                        $('#shipping-options-container').html(
-                            '<p class="text-sm text-red-500">Opsi pengiriman tidak tersedia untuk alamat ini.</p>'
-                        );
-                    }
-                }).fail(function() {
-                    $('#shipping-loader').hide();
-                    $('#shipping-options-container').html(
-                        '<p class="text-sm text-red-500">Gagal memuat ongkos kirim. Silakan coba lagi.</p>'
-                    );
-                });
+                fetch('{{ route('id.frontend.lionparcel.get-services') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken
+                        },
+                        body: JSON.stringify({
+                            address_id: addressId,
+                            weight: weight
+                        })
+                    })
+                    .then(res => {
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        return res.json();
+                    })
+                    .then(data => {
+                        document.getElementById('shipping-loader').style.display = 'none';
+
+                        if (data.success && data.data && data.data.length > 0) {
+                            let html = '<div class="space-y-3">';
+                            data.data.forEach(service => {
+                                const isChecked = service.serviceCode == selectedShippingService ?
+                                    'checked' : '';
+                                const labelClasses = service.serviceCode == selectedShippingService ?
+                                    'border-blue-500 bg-blue-50' : '';
+                                html += `
+                                <label class="flex justify-between border p-3 rounded-lg cursor-pointer hover:border-blue-500 transition-all shipping-option-label ${labelClasses}">
+                                    <div class="flex items-center">
+                                        <input type="radio" name="shipping_option" class="mr-3"
+                                               value="${service.serviceCode}"
+                                               data-cost="${service.price}" ${isChecked}>
+                                        <div>
+                                            <div class="font-medium">${service.serviceName}</div>
+                                            <div class="text-xs text-gray-500">
+                                                ${service.etd ? 'Estimasi: ' + service.etd : 'Estimasi belum tersedia'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="font-semibold">${formatRupiah(service.price)}</div>
+                                </label>`;
+                            });
+                            html += '</div>';
+                            document.getElementById('shipping-options-container').innerHTML = html;
+                        } else {
+                            document.getElementById('shipping-options-container').innerHTML =
+                                '<p class="text-sm text-red-500">Opsi pengiriman tidak tersedia untuk alamat ini.</p>';
+                        }
+                    })
+                    .catch(err => {
+                        console.error('fetchShippingRates error:', err);
+                        document.getElementById('shipping-loader').style.display = 'none';
+                        document.getElementById('shipping-options-container').innerHTML =
+                            '<p class="text-sm text-red-500">Gagal memuat ongkos kirim. Silakan coba lagi.</p>';
+                    });
             }
 
-            // 1. Event handler saat alamat diganti
-            $('#shipping_address').on('change', function() {
-                const addressId = $(this).val();
-                selectedShippingCost = 0; // Reset ongkir
-                selectedShippingService = ''; // Reset service
-                updateSummary();
+            /* ===============================
+             * SET ADDRESS
+             * =============================== */
+            function setAddress(addressId, callback) {
+                fetch('{{ route('id.frontend.cart.setAddress') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken
+                        },
+                        body: JSON.stringify({
+                            address_id: addressId
+                        })
+                    })
+                    .then(res => {
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        return res.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            console.log('Address updated, fetching new rates...');
+                            if (callback) callback();
+                        } else {
+                            alert('Gagal memperbarui alamat. Silakan coba lagi.');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('setAddress error:', err);
+                        alert('Terjadi kesalahan saat memperbarui alamat.');
+                    });
+            }
 
-                if (!addressId) {
-                    $('#shipping-options-container').html(
-                        '<p class="text-sm text-gray-500">Pilih alamat untuk melihat opsi pengiriman.</p>'
-                    );
-                    return;
-                }
+            /* ===============================
+             * EVENT: ALAMAT BERUBAH
+             * =============================== */
+            const addressSelect = document.getElementById('shipping_address');
+            if (addressSelect) {
+                addressSelect.addEventListener('change', function() {
+                    const addressId = this.value;
+                    selectedShippingCost = 0;
+                    selectedShippingService = '';
+                    updateSummary();
 
-                // Simpan alamat baru dan reset ongkir di backend
-                $.post('{{ route('id.frontend.cart.setAddress') }}', {
-                    address_id: addressId
-                }, function(response) {
-                    if (response.success) {
-                        console.log('Address updated, fetching new rates...');
-                        fetchShippingRates(addressId);
-                    } else {
-                        alert('Gagal memperbarui alamat. Silakan coba lagi.');
+                    if (!addressId) {
+                        document.getElementById('shipping-options-container').innerHTML =
+                            '<p class="text-sm text-gray-500">Pilih alamat untuk melihat opsi pengiriman.</p>';
+                        return;
                     }
-                }).fail(function() {
-                    alert('Terjadi kesalahan saat memperbarui alamat.');
-                });
-            });
 
-            // 2. Event handler saat memilih opsi pengiriman
-            $(document).on('change', 'input[name="shipping_option"]', function() {
-                const service = $(this).val();
-                const cost = parseFloat($(this).data('cost'));
-                const addressId = $('#shipping_address').val();
-                const checkoutBtn = $('#checkout-btn');
+                    setAddress(addressId, function() {
+                        fetchShippingRates(addressId);
+                    });
+                });
+
+                // Initial load
+                if (addressSelect.value) {
+                    addressSelect.dispatchEvent(new Event('change'));
+                }
+            }
+
+            /* ===============================
+             * EVENT: OPSI PENGIRIMAN DIPILIH
+             * =============================== */
+            document.addEventListener('change', function(e) {
+                if (e.target.name !== 'shipping_option') return;
+
+                const service = e.target.value;
+                const cost = parseFloat(e.target.dataset.cost);
+                const addressId = addressSelect ? addressSelect.value : '';
+                const checkoutBtn = document.getElementById('checkout-btn');
 
                 selectedShippingCost = cost;
                 updateSummary();
 
-                // Tandai yang dipilih
-                $('.shipping-option-label').removeClass('border-blue-500 bg-blue-50');
-                $(this).closest('label').addClass('border-blue-500 bg-blue-50');
-
-                // Nonaktifkan tombol checkout selama proses penyimpanan
-                checkoutBtn.prop('disabled', true).addClass('opacity-50 cursor-not-allowed').text(
-                    'Menyimpan Pengiriman...');
-
-                // Simpan detail pengiriman ke backend
-                $.post('{{ route('id.frontend.cart.setShipping') }}', {
-                    address_id: addressId,
-                    shipping_service: service,
-                    shipping_cost: cost
-                }, function(response) {
-                    if (response.success) {
-                        console.log('Shipping information saved.');
-                        // Aktifkan kembali tombol checkout setelah berhasil
-                        checkoutBtn.prop('disabled', false).removeClass(
-                            'opacity-50 cursor-not-allowed').text('Lanjutkan ke Checkout');
-                    } else {
-                        alert('Gagal menyimpan informasi pengiriman.');
-                        checkoutBtn.prop('disabled', false).removeClass(
-                            'opacity-50 cursor-not-allowed').text('Lanjutkan ke Checkout');
-                    }
-                }).fail(function() {
-                    alert('Terjadi kesalahan saat menyimpan pengiriman.');
-                    checkoutBtn.prop('disabled', false).removeClass('opacity-50 cursor-not-allowed')
-                        .text('Lanjutkan ke Checkout');
+                // Highlight pilihan
+                document.querySelectorAll('.shipping-option-label').forEach(el => {
+                    el.classList.remove('border-blue-500', 'bg-blue-50');
                 });
-            });
+                e.target.closest('label').classList.add('border-blue-500', 'bg-blue-50');
 
-            // Initial load
-            if ($('#shipping_address').val()) {
-                $('#shipping_address').trigger('change');
-            }
+                // Nonaktifkan tombol sementara
+                checkoutBtn.setAttribute('disabled', true);
+                checkoutBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                checkoutBtn.textContent = 'Menyimpan Pengiriman...';
 
-            /* ================= CHECKOUT ================= */
-            $('#checkout-btn').on('click', function(e) {
-                e.preventDefault();
-                const btn = $(this);
-
-                // Langsung nonaktifkan untuk mencegah klik ganda
-                btn.prop('disabled', true).addClass('opacity-50 cursor-not-allowed').text('Memproses...');
-
-                if (!$('input[name="shipping_option"]:checked').length) {
-                    alert('Silakan pilih metode pengiriman terlebih dahulu.');
-                    btn.prop('disabled', false).removeClass('opacity-50 cursor-not-allowed').text(
-                        'Lanjutkan ke Checkout');
-                    return;
-                }
-
-                $.post('{{ route('id.frontend.cart.checkout-lion-parcel') }}')
-                    .done(res => {
-                        if (res.status === 'success') {
-                            // Redirect tanpa mengaktifkan kembali tombol
-                            window.location.href = res.redirect_url;
+                fetch('{{ route('id.frontend.cart.setShipping') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken
+                        },
+                        body: JSON.stringify({
+                            address_id: addressId,
+                            shipping_service: service,
+                            shipping_cost: cost
+                        })
+                    })
+                    .then(res => {
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        return res.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            console.log('Shipping information saved.');
                         } else {
-                            alert(res.message || 'Terjadi kesalahan saat checkout.');
-                            btn.prop('disabled', false).removeClass('opacity-50 cursor-not-allowed')
-                                .text('Lanjutkan ke Checkout');
+                            alert('Gagal menyimpan informasi pengiriman.');
                         }
                     })
-                    .fail(xhr => {
-                        alert(xhr.responseJSON?.message ||
-                            'Checkout gagal. Pastikan semua informasi sudah benar.');
-                        btn.prop('disabled', false).removeClass('opacity-50 cursor-not-allowed').text(
-                            'Lanjutkan ke Checkout');
+                    .catch(err => {
+                        console.error('setShipping error:', err);
+                        alert('Terjadi kesalahan saat menyimpan pengiriman.');
+                    })
+                    .finally(() => {
+                        checkoutBtn.removeAttribute('disabled');
+                        checkoutBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        checkoutBtn.textContent = 'Lanjutkan ke Checkout';
                     });
             });
+
+            /* ===============================
+             * CHECKOUT
+             * =============================== */
+            const checkoutBtn = document.getElementById('checkout-btn');
+            if (checkoutBtn) {
+                checkoutBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const btn = this;
+
+                    if (!document.querySelector('input[name="shipping_option"]:checked')) {
+                        alert('Silakan pilih metode pengiriman terlebih dahulu.');
+                        return;
+                    }
+
+                    btn.setAttribute('disabled', true);
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                    btn.textContent = 'Memproses...';
+
+                    fetch('{{ route('id.frontend.cart.checkout-lion-parcel') }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': csrfToken
+                            }
+                        })
+                        .then(res => {
+                            if (!res.ok) throw new Error('HTTP ' + res.status);
+                            return res.json();
+                        })
+                        .then(data => {
+                            if (data.status === 'success') {
+                                window.location.href = data.redirect_url;
+                            } else {
+                                alert(data.message || 'Terjadi kesalahan saat checkout.');
+                                btn.removeAttribute('disabled');
+                                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                                btn.textContent = 'Lanjutkan ke Checkout';
+                            }
+                        })
+                        .catch(err => {
+                            console.error('Checkout error:', err);
+                            alert('Checkout gagal. Pastikan semua informasi sudah benar.');
+                            btn.removeAttribute('disabled');
+                            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                            btn.textContent = 'Lanjutkan ke Checkout';
+                        });
+                });
+            }
+
         });
     </script>
 @endpush

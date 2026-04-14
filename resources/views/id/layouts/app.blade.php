@@ -60,6 +60,11 @@
     <script src="{{ asset('backend/assets/js/custom/pages/user-profile/general.js') }}"></script>
     <!--end::Custom Javascript-->
 
+    <script>
+        if (typeof jQuery === 'undefined') {
+            document.write('<script src="https://code.jquery.com/jquery-3.6.0.min.js"><\/script>');
+        }
+    </script>
     @stack('scripts')
 
 </body>
