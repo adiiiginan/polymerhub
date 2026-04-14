@@ -1,4 +1,4 @@
-@extends('en.layouts.app')
+@extends('id.layouts.app')
 
 @section('title', 'Produk')
 
@@ -73,7 +73,7 @@
                             <!-- Action Buttons -->
                             <div class="lg:col-span-1 flex flex-col justify-end">
                                 <div class="flex items-center space-x-3 mt-4">
-                                    <a href="{{ route('en.frontend.produk') }}"
+                                    <a href="{{ route('id.frontend.produk') }}"
                                         class="w-full text-center px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold text-sm">
                                         Clear
                                     </a>
@@ -123,7 +123,7 @@
                             </div>
 
                             <div class="mt-auto">
-                                <button data-url="{{ route('en.frontend.produk.show', $p->id) }}"
+                                <button data-url="{{ route('id.frontend.produk.show', $p->id) }}"
                                     class="view-options-button w-full text-center bg-[var(--accent-color)] text-white hover:bg-opacity-90 font-bold px-4 py-2.5 rounded-md text-sm transition-all duration-300 transform group-hover:scale-105">
                                     View Options
                                 </button>
