@@ -58,6 +58,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::resource('articles', 'App\Http\Controllers\Admin\ArticleController');
         Route::resource('produk', 'App\Http\Controllers\Admin\ProdukController');
+        Route::get('/api/produk-fields/{category}', [App\Http\Controllers\Admin\ProdukController::class, 'getFieldsByCategory'])->name('produk.fields_by_category');
         // Ship Routes
         Route::get('/ship/shipment', [ShipController::class, 'shipment'])->name('ship.shipment');
         Route::post('/ship/update-resi-lion/{id}', [ShipController::class, 'updateResiLion'])->name('admin.lion.update-resi');

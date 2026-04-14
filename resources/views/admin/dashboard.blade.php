@@ -1,4 +1,4 @@
-@extends('admin.Layout.partials.app')
+@extends('admin.layout.partials.app')
 
 @section('content')
     <!-- Recent Users -->

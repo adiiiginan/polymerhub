@@ -8,7 +8,6 @@
             </div>
             <div class="card-body">
 
-                {{-- Notifikasi Error --}}
                 @if ($errors->any())
                     <div class="alert alert-danger">
                         <strong>Perhatian!</strong> Ada kesalahan input.
@@ -20,12 +19,12 @@
                     </div>
                 @endif
 
-                {{-- Form Produk --}}
-                {{-- Mengubah method menjadi GET untuk reload, dan action ke route create --}}
                 <form action="{{ route('admin.produk.store') }}" method="POST" id="product-form"
                     enctype="multipart/form-data">
                     @csrf
-                    <input type="hidden" name="id_jenis" value="{{ request('shape_id') }}">
+
+                    {{-- Hidden fields untuk preserve data saat reload shape (Rulon) --}}
+                    <input type="hidden" name="id_cat_hidden" value="{{ request('id_cat') }}">
                     <input type="hidden" name="nama_produk_hidden" value="{{ request('nama_produk') }}">
                     <input type="hidden" name="deskripsi_hidden" value="{{ request('deskripsi') }}">
                     <input type="hidden" name="id_kat_hidden" value="{{ request('id_kat') }}">
@@ -34,30 +33,44 @@
                     <input type="hidden" name="eu1935_hidden" value="{{ request('eu1935') }}">
                     <input type="hidden" name="fda_hidden" value="{{ request('fda') }}">
                     <input type="hidden" name="usp_hidden" value="{{ request('usp') }}">
-                    <input type="hidden" name="id_environmant_hidden" value="{{ request('id_environmant') }}">
-                    <input type="hidden" name="pressure_hidden" value="{{ request('pressure') }}">
-                    <input type="hidden" name="mating_hidden" value="{{ request('mating') }}">
-                    <input type="hidden" name="max_pv_hidden" value="{{ request('max_pv') }}">
-                    <input type="hidden" name="maximum_p_hidden" value="{{ request('maximum_p') }}">
-                    <input type="hidden" name="max_v_hidden" value="{{ request('max_v') }}">
-                    <input type="hidden" name="friction_hidden" value="{{ request('friction') }}">
-                    <input type="hidden" name="elongation_hidden" value="{{ request('elongation') }}">
-                    <input type="hidden" name="deformation_hidden" value="{{ request('deformation') }}">
-                    <input type="hidden" name="tensile_hidden" value="{{ request('tensile') }}">
-                    <input type="hidden" name="spesific_hidden" value="{{ request('spesific') }}">
                     <input type="hidden" name="status_aktif_hidden" value="{{ request('status_aktif') }}">
 
-
                     <div class="row">
-                        <!-- Kolom Kiri -->
+
+                        {{-- ============================= KOLOM KIRI ============================= --}}
                         <div class="col-md-6">
+
                             {{-- Informasi Dasar Produk --}}
                             <div class="card shadow-sm mb-4">
-                                <div class="card-header text-center fw-bold" style="font-size: 17px; margin-top: 43px;">
+                                <div class="card-header text-center fw-bold" style="font-size:17px; margin-top:43px;">
                                     Informasi Dasar Produk
                                 </div>
                                 <div class="card-body">
-                                    {{-- Kode & Nama --}}
+
+                                    {{-- ======================================================= --}}
+                                    {{-- PILIH TIPE PRODUK — penentu utama tampilan form         --}}
+                                    {{-- ======================================================= --}}
+                                    <div class="mb-4 p-3 border border-primary rounded bg-light">
+                                        <label class="form-label fw-bold">
+                                            <span class="text-danger">*</span> Tipe Produk
+                                        </label>
+                                        <select name="id_cat" id="categorySelect"
+                                            class="form-select form-select-lg border-primary" required>
+                                            <option value="">-- Pilih Tipe Produk Terlebih Dahulu --</option>
+                                            @foreach ($produkCategory as $cat)
+                                                <option value="{{ $cat->id }}"
+                                                    data-type="{{ strtolower(str_replace([' ', '3350'], ['_', ''], $cat->category)) }}"
+                                                    {{ request('id_cat', old('id_cat')) == $cat->id ? 'selected' : '' }}>
+                                                    {{ $cat->category }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                        <div class="form-text text-primary">
+                                            Pilih tipe produk untuk menampilkan inputan yang sesuai.
+                                        </div>
+                                    </div>
+
+                                    {{-- Kode, SKU, Nama --}}
                                     <div class="row mb-3">
                                         <div class="col-md-4">
                                             <label class="form-label">Kode Produk</label>
@@ -66,94 +79,88 @@
                                             <input type="hidden" name="kode_produk" value="{{ $kode }}">
                                         </div>
                                         <div class="col-md-8">
-                                            <label class="form-label">SKU Produk</label>
+                                            <label class="form-label">SKU Produk <span class="text-danger">*</span></label>
                                             <input type="text" name="sku" class="form-control"
-                                                value="{{ request('sku') }}" required>
+                                                value="{{ request('sku', old('sku')) }}" required>
                                         </div>
-                                        <div class="col-md-12">
-                                            <label class="form-label">Nama Produk</label>
+                                        <div class="col-md-12 mt-2">
+                                            <label class="form-label">Nama Produk <span class="text-danger">*</span></label>
                                             <input type="text" name="nama_produk" class="form-control"
-                                                value="{{ request('nama_produk') }}" required>
+                                                value="{{ request('nama_produk', old('nama_produk')) }}" required>
                                         </div>
-
-
                                     </div>
 
                                     <div class="row mb-3">
                                         <div class="col-md-6">
                                             <label class="form-label">Weight (kg)</label>
-                                            <input type="number" name="weight" id="weight" class="form-control"
+                                            <input type="number" name="weight" class="form-control"
                                                 value="{{ old('weight') }}" step="any">
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Length (cm)</label>
-                                            <input type="number" name="length" id="length" class="form-control"
+                                            <input type="number" name="length" class="form-control"
                                                 value="{{ old('length') }}" step="any">
                                         </div>
                                     </div>
-
                                     <div class="row mb-3">
                                         <div class="col-md-6">
                                             <label class="form-label">Width (cm)</label>
-                                            <input type="number" name="width" id="width" class="form-control"
+                                            <input type="number" name="width" class="form-control"
                                                 value="{{ old('width') }}" step="any">
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Height (cm)</label>
-                                            <input type="number" name="height" id="height" class="form-control"
+                                            <input type="number" name="height" class="form-control"
                                                 value="{{ old('height') }}" step="any">
                                         </div>
                                     </div>
 
-                                    {{-- Deskripsi --}}
                                     <div class="mb-3">
                                         <label class="form-label">Deskripsi</label>
-                                        <textarea name="deskripsi" class="form-control" rows="3">{{ request('deskripsi') }}</textarea>
+                                        <textarea name="deskripsi" class="form-control" rows="3">{{ request('deskripsi', old('deskripsi')) }}</textarea>
                                     </div>
 
-                                    {{-- Kategori & Merk --}}
                                     <div class="row mb-3">
                                         <div class="col-md-6">
-                                            <label class="form-label">Produk Kategori</label>
+                                            <label class="form-label">Kategori Produk</label>
                                             <select name="id_kat" class="form-select">
                                                 <option value="">-- Pilih Kategori --</option>
-                                                @foreach ($kategori as $env)
-                                                    <option value="{{ $env->id }}"
-                                                        {{ request('id_kat') == $env->id ? 'selected' : '' }}>
-                                                        {{ $env->kategori }}</option>
+                                                @foreach ($kategori as $kat)
+                                                    <option value="{{ $kat->id }}"
+                                                        {{ request('id_kat', old('id_kat')) == $kat->id ? 'selected' : '' }}>
+                                                        {{ $kat->kategori }}
+                                                    </option>
                                                 @endforeach
                                             </select>
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Merk</label>
                                             <input type="text" name="merk" class="form-control"
-                                                value="{{ request('merk') }}">
+                                                value="{{ request('merk', old('merk')) }}">
                                         </div>
                                     </div>
 
-
-
-
-                                    {{-- Temperature --}}
                                     <div class="mb-3">
                                         <label class="form-label">Temperature Range</label>
                                         <input type="text" name="tempratur" class="form-control"
-                                            value="{{ request('tempratur') }}">
+                                            value="{{ request('tempratur', old('tempratur')) }}">
                                     </div>
                                 </div>
                             </div>
 
-                            {{-- Varian Stok & Harga --}}
-                            <div class="card shadow-sm mb-4">
-                                <div class="card-header text-center fw-bold" style="font-size: 17px; margin-top: 43px;">
-                                    Varian Stok & Harga
+                            {{-- ============================================================ --}}
+                            {{-- [RULON] Varian Shape, Ukuran, Stok & Harga                 --}}
+                            {{-- ============================================================ --}}
+                            <div id="section-rulon-varian" class="cat-section card shadow-sm mb-4" style="display:none;">
+                                <div class="card-header text-center fw-bold" style="font-size:17px; margin-top:43px;">
+                                    Varian Stok & Harga (Rulon)
                                 </div>
                                 <div class="card-body">
-                                    {{-- Pilihan Shape (Dropdown) --}}
                                     <div class="mb-3">
-                                        <label class="form-label fw-bold">Pilih Shape</label>
+                                        <label class="form-label fw-bold">Pilih Shape <span
+                                                class="text-danger">*</span></label>
                                         <select name="shape_id" id="shapeSelect" class="form-select">
-                                            <option value="">-- Pilih Shape untuk menampilkan ukuran --</option>
+                                            <option value="">-- Pilih Shape --</option>
                                             @foreach ($shapes as $shape)
                                                 <option value="{{ $shape->id }}"
                                                     {{ request('shape_id') == $shape->id ? 'selected' : '' }}>
@@ -163,14 +170,14 @@
                                         </select>
                                     </div>
 
-                                    {{-- Kontainer Ukuran, Stok, dan Harga --}}
-                                    <div id="varian-details" style="{{ request('shape_id') ? '' : 'display: block;' }}">
+                                    <div id="varian-details">
                                         @if ($ukurans->count() > 0)
                                             <hr>
                                             <div class="mb-3">
-                                                <label for="id_ukuran" class="form-label fw-bold">Pilih Ukuran</label>
-                                                <select class="form-select" name="id_ukuran[]" id="id_ukuran">
-                                                    <option value="">Pilih Ukuran</option>
+                                                <label class="form-label fw-bold">Pilih Ukuran <span
+                                                        class="text-danger">*</span></label>
+                                                <select class="form-select" name="id_ukuran[]">
+                                                    <option value="">-- Pilih Ukuran --</option>
                                                     @foreach ($ukurans as $ukuran)
                                                         <option value="{{ $ukuran->id }}"
                                                             {{ request('id_ukuran') == $ukuran->id ? 'selected' : '' }}>
@@ -183,23 +190,23 @@
                                                 <div class="col-md-6 mb-3">
                                                     <label class="form-label">Stok</label>
                                                     <input type="number" name="stok_variant[]" class="form-control"
-                                                        placeholder="Stok" value="">
+                                                        placeholder="Stok" min="0">
                                                 </div>
                                                 <div class="col-md-6 mb-3">
                                                     <label class="form-label">Harga</label>
                                                     <input type="number" name="harga_variant[]" class="form-control"
-                                                        placeholder="Harga" value="">
+                                                        placeholder="Harga" min="0">
                                                 </div>
                                             </div>
                                         @elseif(request('shape_id'))
-                                            <hr>
-                                            <p class="text-muted text-center">Tidak ada ukuran yang tersedia untuk shape
-                                                ini.</p>
+                                            <p class="text-muted text-center">Tidak ada ukuran untuk shape ini.</p>
+                                        @else
+                                            <p class="text-muted text-center small">Pilih shape untuk menampilkan ukuran.
+                                            </p>
                                         @endif
                                     </div>
-                                    {{-- Hidden inputs to ensure validation triggers if no shape is selected --}}
                                     @if (!request('shape_id'))
-                                        <div style="display: none;">
+                                        <div style="display:none;">
                                             <select name="id_ukuran[]">
                                                 <option value=""></option>
                                             </select>
@@ -210,36 +217,199 @@
                                 </div>
                             </div>
 
-                            {{-- Sertifikasi --}}
-                            <div class="card shadow-sm mb-4">
-                                <div class="card-header text-center fw-bold" style="font-size: 17px; margin-top: 43px;">
+                            {{-- ============================================================ --}}
+                            {{-- [TYGON 3350] Dimensi Tube + Stok & Harga                   --}}
+                            {{-- ============================================================ --}}
+                            <div id="section-tygon-varian" class="cat-section card shadow-sm mb-4" style="display:none;">
+                                <div class="card-header text-center fw-bold" style="font-size:17px; margin-top:43px;">
+                                    Dimensi Tube & Harga (Tygon 3350)
+                                </div>
+                                <div class="card-body">
+
+                                    {{-- Pilih Kategori Ukuran --}}
+                                    <div class="mb-3 p-3 border border-info rounded bg-light">
+                                        <label class="form-label fw-bold">
+                                            <span class="text-danger">*</span> Kategori Ukuran
+                                        </label>
+                                        <select name="tygon_size_category" id="tygonSizeCategory"
+                                            class="form-select border-info" required>
+                                            <option value="">-- Pilih Kategori Ukuran --</option>
+                                            <option value="tubing_inventory"
+                                                {{ old('tygon_size_category', request('tygon_size_category')) == 'tubing_inventory' ? 'selected' : '' }}>
+                                                Tubing Inventory Size (inches)
+                                            </option>
+                                            <option value="metric"
+                                                {{ old('tygon_size_category', request('tygon_size_category')) == 'metric' ? 'selected' : '' }}>
+                                                Metric Sizes (mm)
+                                            </option>
+                                        </select>
+                                        <div class="form-text text-info">
+                                            Pilih kategori ukuran untuk menentukan satuan dimensi tube.
+                                        </div>
+                                    </div>
+
+                                    {{-- Label satuan dinamis berdasarkan kategori ukuran --}}
+                                    <div class="row mb-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">
+                                                Inner Diameter
+                                                <span class="tygon-unit badge bg-secondary ms-1"
+                                                    id="label-id-unit">-</span>
+                                            </label>
+                                            <input type="number" step="0.001" name="inner_diameter"
+                                                class="form-control"
+                                                value="{{ old('inner_diameter', request('inner_diameter')) }}"
+                                                placeholder="e.g. 4.762" id="input-inner-diameter">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">
+                                                Outer Diameter
+                                                <span class="tygon-unit badge bg-secondary ms-1"
+                                                    id="label-od-unit">-</span>
+                                            </label>
+                                            <input type="number" step="0.001" name="outer_diameter"
+                                                class="form-control"
+                                                value="{{ old('outer_diameter', request('outer_diameter')) }}"
+                                                placeholder="e.g. 6.350" id="input-outer-diameter">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">
+                                                Wall Thickness
+                                                <span class="tygon-unit badge bg-secondary ms-1"
+                                                    id="label-wall-unit">-</span>
+                                            </label>
+                                            <input type="number" step="0.001" name="wall_thickness"
+                                                class="form-control"
+                                                value="{{ old('wall_thickness', request('wall_thickness')) }}"
+                                                placeholder="e.g. 0.794" id="input-wall-thickness">
+                                        </div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">
+                                                Length per Roll
+                                                <span class="tygon-unit badge bg-secondary ms-1"
+                                                    id="label-len-unit">-</span>
+                                            </label>
+                                            <input type="number" step="0.01" name="tygon_length"
+                                                class="form-control"
+                                                value="{{ old('tygon_length', request('tygon_length')) }}"
+                                                placeholder="e.g. 50" id="input-tygon-length">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">
+                                                Min Bend Radius
+                                                <span class="tygon-unit badge bg-secondary ms-1"
+                                                    id="label-bend-unit">-</span>
+                                            </label>
+                                            <input type="number" step="0.001" name="min_bend_radius"
+                                                class="form-control"
+                                                value="{{ old('min_bend_radius', request('min_bend_radius')) }}"
+                                                placeholder="e.g. 0.125" id="input-min-bend">
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">Stok</label>
+                                            <input type="number" name="tygon_stok" class="form-control"
+                                                value="{{ old('tygon_stok') }}" placeholder="0" min="0">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">Harga</label>
+                                            <input type="number" name="tygon_harga" class="form-control"
+                                                value="{{ old('tygon_harga') }}" placeholder="0" min="0">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- ============================================================ --}}
+                            {{-- [TOP TAPE] Dimensi Tape + Stok & Harga                     --}}
+                            {{-- ============================================================ --}}
+                            <div id="section-toptape-varian" class="cat-section card shadow-sm mb-4"
+                                style="display:none;">
+                                <div class="card-header text-center fw-bold" style="font-size:17px; margin-top:43px;">
+                                    Dimensi Tape & Harga (Top Tape)
+                                </div>
+                                <div class="card-body">
+                                    <div class="row mb-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Lebar (mm)</label>
+                                            <input type="number" step="0.01" name="tape_width" class="form-control"
+                                                value="{{ old('tape_width') }}" placeholder="e.g. 25">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Tebal (mm)</label>
+                                            <input type="number" step="0.001" name="tape_thickness"
+                                                class="form-control" value="{{ old('tape_thickness') }}"
+                                                placeholder="e.g. 0.1">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Panjang Roll (m)</label>
+                                            <input type="number" step="0.01" name="tape_length" class="form-control"
+                                                value="{{ old('tape_length') }}" placeholder="e.g. 30">
+                                        </div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Warna</label>
+                                            <input type="text" name="tape_color" class="form-control"
+                                                value="{{ old('tape_color') }}" placeholder="e.g. White">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Adhesive Type</label>
+                                            <input type="text" name="tape_adhesive" class="form-control"
+                                                value="{{ old('tape_adhesive') }}" placeholder="e.g. Silicone">
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">Stok</label>
+                                            <input type="number" name="tape_stok" class="form-control"
+                                                value="{{ old('tape_stok') }}" placeholder="0" min="0">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">Harga</label>
+                                            <input type="number" name="tape_harga" class="form-control"
+                                                value="{{ old('tape_harga') }}" placeholder="0" min="0">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- Sertifikasi (hanya Rulon) --}}
+                            <div id="section-sertifikasi" class="cat-section card shadow-sm mb-4" style="display:none;">
+                                <div class="card-header text-center fw-bold" style="font-size:17px; margin-top:43px;">
                                     Sertifikasi
                                 </div>
                                 <div class="card-body">
                                     <div class="row mb-3">
                                         <div class="col-md-4">
-                                            <label class="form-label">Certification EU1935</label>
+                                            <label class="form-label">EU1935</label>
                                             <select name="eu1935" class="form-select">
-                                                <option value="ya" {{ request('eu1935') == 'ya' ? 'selected' : '' }}>
-                                                    Ya</option>
+                                                <option value="ya"
+                                                    {{ request('eu1935', 'ya') == 'ya' ? 'selected' : '' }}>Ya</option>
                                                 <option value="tidak"
-                                                    {{ request('eu1935') == 'tidak' ? 'selected' : '' }}>Tidak</option>
+                                                    {{ request('eu1935') == 'tidak' ? 'selected' : '' }}>Tidak
+                                                </option>
                                             </select>
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label">Certification FDA</label>
+                                            <label class="form-label">FDA</label>
                                             <select name="fda" class="form-select">
-                                                <option value="ya" {{ request('fda') == 'ya' ? 'selected' : '' }}>Ya
-                                                </option>
+                                                <option value="ya"
+                                                    {{ request('fda', 'ya') == 'ya' ? 'selected' : '' }}>Ya</option>
                                                 <option value="tidak" {{ request('fda') == 'tidak' ? 'selected' : '' }}>
                                                     Tidak</option>
                                             </select>
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label">Certification USP Class VI</label>
+                                            <label class="form-label">USP Class VI</label>
                                             <select name="usp" class="form-select">
-                                                <option value="ya" {{ request('usp') == 'ya' ? 'selected' : '' }}>Ya
-                                                </option>
+                                                <option value="ya"
+                                                    {{ request('usp', 'ya') == 'ya' ? 'selected' : '' }}>Ya</option>
                                                 <option value="tidak" {{ request('usp') == 'tidak' ? 'selected' : '' }}>
                                                     Tidak</option>
                                             </select>
@@ -247,21 +417,25 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- Kolom Kanan -->
+                        </div>{{-- end kolom kiri --}}
+
+                        {{-- ============================= KOLOM KANAN ============================= --}}
                         <div class="col-md-6">
-                            {{-- Spesifikasi Teknis --}}
-                            <div class="card shadow-sm mb-4">
-                                <div class="card-header text-center fw-bold" style="font-size: 17px; margin-top: 43px;">
-                                    Spesifikasi Teknis
+
+                            {{-- ============================================================ --}}
+                            {{-- [RULON] Spesifikasi Teknis                                  --}}
+                            {{-- ============================================================ --}}
+                            <div id="section-rulon-spek" class="cat-section card shadow-sm mb-4" style="display:none;">
+                                <div class="card-header text-center fw-bold" style="font-size:17px; margin-top:43px;">
+                                    Spesifikasi Teknis (Rulon)
                                 </div>
                                 <div class="card-body">
                                     <div class="row mb-3">
                                         <div class="col-md-6">
                                             <label class="form-label">Environment</label>
                                             <select name="id_environmant" class="form-select">
-                                                <option value="">-- Pilih Environment --</option>
+                                                <option value="">-- Pilih --</option>
                                                 @foreach ($environment as $env)
                                                     <option value="{{ $env->id }}"
                                                         {{ request('id_environmant') == $env->id ? 'selected' : '' }}>
@@ -279,10 +453,10 @@
                                         <div class="col-md-6">
                                             <label class="form-label">Shaft Hardness</label>
                                             <input type="text" name="mating" class="form-control"
-                                                value="{{ request('mating') }}" required>
+                                                value="{{ request('mating') }}">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label">Max PV (Mpa x m/s)</label>
+                                            <label class="form-label">Max PV (MPa×m/s)</label>
                                             <input type="number" step="0.01" name="max_pv" class="form-control"
                                                 value="{{ request('max_pv') }}">
                                         </div>
@@ -301,13 +475,13 @@
                                     </div>
                                     <div class="row mb-3">
                                         <div class="col-md-6">
-                                            <label class="form-label">Friction – static & dynamic​</label>
-                                            <input type="text" step="0.01" name="friction" class="form-control"
+                                            <label class="form-label">Friction (static & dynamic)</label>
+                                            <input type="text" name="friction" class="form-control"
                                                 value="{{ request('friction') }}">
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Elongation ASTM D638</label>
-                                            <input type="text" step="0.01" name="elongation" class="form-control"
+                                            <input type="text" name="elongation" class="form-control"
                                                 value="{{ request('elongation') }}">
                                         </div>
                                     </div>
@@ -331,9 +505,146 @@
                                 </div>
                             </div>
 
-                            {{-- Media & Gambar --}}
+                            {{-- ============================================================ --}}
+                            {{-- [TYGON 3350] Spesifikasi Teknis                             --}}
+                            {{-- ============================================================ --}}
+                            <div id="section-tygon-spek" class="cat-section card shadow-sm mb-4" style="display:none;">
+                                <div class="card-header text-center fw-bold" style="font-size:17px; margin-top:43px;">
+                                    Spesifikasi Teknis (Tygon 3350)
+                                </div>
+                                <div class="card-body">
+
+                                    {{-- Max. Suggested Working Pressure — 2 suhu --}}
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Max. Suggested Working Pressure (psi)</label>
+                                        <div class="row g-2">
+                                            <div class="col-md-6">
+                                                <label class="form-label text-muted small mb-1">
+                                                    <i class="bi bi-thermometer-half text-primary"></i> 73°F
+                                                </label>
+                                                <input type="text" name="tygon_working_pressure_73"
+                                                    class="form-control"
+                                                    value="{{ old('tygon_working_pressure_73', request('tygon_working_pressure_73')) }}"
+                                                    placeholder="e.g. 22">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label text-muted small mb-1">
+                                                    <i class="bi bi-thermometer-high text-danger"></i> 320°F
+                                                </label>
+                                                <input type="text" name="tygon_working_pressure_320"
+                                                    class="form-control"
+                                                    value="{{ old('tygon_working_pressure_320', request('tygon_working_pressure_320')) }}"
+                                                    placeholder="e.g. 21">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {{-- Vacuum Rating — 2 suhu --}}
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Vacuum Rating (In. of Mercury)</label>
+                                        <div class="row g-2">
+                                            <div class="col-md-6">
+                                                <label class="form-label text-muted small mb-1">
+                                                    <i class="bi bi-thermometer-half text-primary"></i> 73°F
+                                                </label>
+                                                <input type="text" name="tygon_vacuum_73" class="form-control"
+                                                    value="{{ old('tygon_vacuum_73', request('tygon_vacuum_73')) }}"
+                                                    placeholder="e.g. 29.9">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label text-muted small mb-1">
+                                                    <i class="bi bi-thermometer-high text-danger"></i> 320°F
+                                                </label>
+                                                <input type="text" name="tygon_vacuum_320" class="form-control"
+                                                    value="{{ old('tygon_vacuum_320', request('tygon_vacuum_320')) }}"
+                                                    placeholder="e.g. 29.9">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Tensile Strength (MPa)</label>
+                                            <input type="number" step="0.01" name="tensile" class="form-control"
+                                                value="{{ old('tensile') }}">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Elongation (%)</label>
+                                            <input type="text" name="elongation" class="form-control"
+                                                value="{{ old('elongation') }}" placeholder="e.g. 350">
+                                        </div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Specific Gravity</label>
+                                            <input type="number" step="0.01" name="spesific" class="form-control"
+                                                value="{{ old('spesific') }}">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Environment</label>
+                                            <select name="id_environmant" class="form-select">
+                                                <option value="">-- Pilih --</option>
+                                                @foreach ($environment as $env)
+                                                    <option value="{{ $env->id }}"
+                                                        {{ old('id_environmant') == $env->id ? 'selected' : '' }}>
+                                                        {{ $env->envi }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- ============================================================ --}}
+                            {{-- [TOP TAPE] Spesifikasi Teknis                               --}}
+                            {{-- ============================================================ --}}
+                            <div id="section-toptape-spek" class="cat-section card shadow-sm mb-4" style="display:none;">
+                                <div class="card-header text-center fw-bold" style="font-size:17px; margin-top:43px;">
+                                    Spesifikasi Teknis (Top Tape)
+                                </div>
+                                <div class="card-body">
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Tensile Strength (N/cm)</label>
+                                            <input type="number" step="0.01" name="tensile" class="form-control"
+                                                value="{{ old('tensile') }}">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Elongation (%)</label>
+                                            <input type="text" name="elongation" class="form-control"
+                                                value="{{ old('elongation') }}">
+                                        </div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Specific Gravity</label>
+                                            <input type="number" step="0.01" name="spesific" class="form-control"
+                                                value="{{ old('spesific') }}">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Friction Coefficient</label>
+                                            <input type="text" name="friction" class="form-control"
+                                                value="{{ old('friction') }}" placeholder="e.g. 0.05 - 0.10">
+                                        </div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Max Temperature (°C)</label>
+                                            <input type="text" name="tape_max_temp" class="form-control"
+                                                value="{{ old('tape_max_temp') }}" placeholder="e.g. 260">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Dielectric Strength (V/mil)</label>
+                                            <input type="text" name="tape_dielectric" class="form-control"
+                                                value="{{ old('tape_dielectric') }}" placeholder="e.g. 3000">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- Media & Status (semua kategori) --}}
                             <div class="card shadow-sm mb-4">
-                                <div class="card-header text-center fw-bold" style="font-size: 17px; margin-top: 43px;">
+                                <div class="card-header text-center fw-bold" style="font-size:17px; margin-top:43px;">
                                     Media & Status
                                 </div>
                                 <div class="card-body">
@@ -344,21 +655,21 @@
                                     <div class="mb-3">
                                         <label class="form-label">Status Aktif</label>
                                         <select name="status_aktif" class="form-select">
-                                            <option value="1" {{ request('status_aktif') == '1' ? 'selected' : '' }}>
-                                                Aktif</option>
+                                            <option value="1"
+                                                {{ request('status_aktif', '1') == '1' ? 'selected' : '' }}>Aktif</option>
                                             <option value="0" {{ request('status_aktif') == '0' ? 'selected' : '' }}>
                                                 Tidak Aktif</option>
                                         </select>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
 
-                    {{-- Tombol --}}
+                        </div>{{-- end kolom kanan --}}
+                    </div>{{-- end row --}}
+
                     <div class="d-flex justify-content-end gap-2">
                         <a href="{{ route('admin.produk.index') }}" class="btn btn-secondary">Batal</a>
-                        <button type="submit" class="btn btn-primary">Simpan</button>
+                        <button type="submit" class="btn btn-primary" id="btn-simpan" disabled>Simpan</button>
                     </div>
                 </form>
             </div>
@@ -369,15 +680,171 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+
+            // ==========================================================
+            // Mapping: keyword yang ada di data-type  ->  section IDs
+            // data-type dibuat dari nama category di-lowercase, spasi → _
+            // Contoh: "Tygon 3350" → "tygon_" → match key 'tygon'
+            // ==========================================================
+            const sectionMap = {
+                'rulon': ['section-rulon-varian', 'section-rulon-spek', 'section-sertifikasi'],
+                'tygon': ['section-tygon-varian', 'section-tygon-spek'],
+                'top_tape': ['section-toptape-varian', 'section-toptape-spek'],
+                'tape': ['section-toptape-varian', 'section-toptape-spek'],
+            };
+
+            const allSections = [
+                'section-rulon-varian', 'section-rulon-spek', 'section-sertifikasi',
+                'section-tygon-varian', 'section-tygon-spek',
+                'section-toptape-varian', 'section-toptape-spek',
+            ];
+
+            const categorySelect = document.getElementById('categorySelect');
+            const btnSimpan = document.getElementById('btn-simpan');
             const productForm = document.getElementById('product-form');
             const shapeSelect = document.getElementById('shapeSelect');
+            const tygonSizeCat = document.getElementById('tygonSizeCategory');
 
+            // ----------------------------------------------------------
+            // Satuan label dinamis untuk Tygon berdasar kategori ukuran
+            // ----------------------------------------------------------
+            const unitMap = {
+                tubing_inventory: {
+                    diameter: 'inches',
+                    length: 'feet',
+                    bend: 'inches',
+                },
+                metric: {
+                    diameter: 'mm',
+                    length: 'm',
+                    bend: 'mm',
+                },
+            };
+
+            const placeholderMap = {
+                tubing_inventory: {
+                    id: 'e.g. 0.1875',
+                    od: 'e.g. 0.3750',
+                    wall: 'e.g. 0.0625',
+                    len: 'e.g. 50',
+                    bend: 'e.g. 0.125',
+                },
+                metric: {
+                    id: 'e.g. 4.762',
+                    od: 'e.g. 6.350',
+                    wall: 'e.g. 0.794',
+                    len: 'e.g. 15.24',
+                    bend: 'e.g. 25.4',
+                },
+            };
+
+            function applyTygonUnits(category) {
+                const units = unitMap[category] || null;
+                const ph = placeholderMap[category] || null;
+
+                const ids = {
+                    'label-id-unit': units ? units.diameter : '-',
+                    'label-od-unit': units ? units.diameter : '-',
+                    'label-wall-unit': units ? units.diameter : '-',
+                    'label-len-unit': units ? units.length : '-',
+                    'label-bend-unit': units ? units.bend : '-',
+                };
+
+                for (const [id, text] of Object.entries(ids)) {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = text;
+                }
+
+                if (ph) {
+                    const map = {
+                        'input-inner-diameter': ph.id,
+                        'input-outer-diameter': ph.od,
+                        'input-wall-thickness': ph.wall,
+                        'input-tygon-length': ph.len,
+                        'input-min-bend': ph.bend,
+                    };
+                    for (const [id, placeholder] of Object.entries(map)) {
+                        const el = document.getElementById(id);
+                        if (el) el.placeholder = placeholder;
+                    }
+                }
+            }
+
+            // Event: kategori ukuran Tygon berubah
+            if (tygonSizeCat) {
+                tygonSizeCat.addEventListener('change', function() {
+                    applyTygonUnits(this.value);
+                });
+
+                // Auto-apply saat load jika sudah ada nilai
+                if (tygonSizeCat.value) {
+                    applyTygonUnits(tygonSizeCat.value);
+                }
+            }
+
+            // ----------------------------------------------------------
+            // Show/hide section berdasar tipe produk
+            // ----------------------------------------------------------
+            function hideAll() {
+                allSections.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'none';
+                });
+            }
+
+            function applyCategory(dataType) {
+                hideAll();
+                if (!dataType) {
+                    btnSimpan.disabled = true;
+                    return;
+                }
+
+                let matched = null;
+                for (const key in sectionMap) {
+                    if (dataType.includes(key)) {
+                        matched = key;
+                        break;
+                    }
+                }
+
+                if (matched) {
+                    sectionMap[matched].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.display = 'block';
+                    });
+                    btnSimpan.disabled = false;
+                } else {
+                    btnSimpan.disabled = true;
+                }
+            }
+
+            // Saat user ganti kategori
+            categorySelect.addEventListener('change', function() {
+                const opt = this.options[this.selectedIndex];
+                const dataType = opt.getAttribute('data-type') || '';
+                applyCategory(dataType);
+            });
+
+            // Auto-apply saat halaman load (misal setelah reload karena pilih shape)
+            if (categorySelect.value) {
+                const opt = categorySelect.options[categorySelect.selectedIndex];
+                const dataType = opt.getAttribute('data-type') || '';
+                applyCategory(dataType);
+            }
+
+            // Shape reload (hanya Rulon) — simpan id_cat sebelum submit GET
             if (shapeSelect) {
                 shapeSelect.addEventListener('change', function() {
-                    // Set form method to GET and action to the create route to reload with selected shape
-                    productForm.method = 'GET';
-                    productForm.action = "{{ route('admin.produk.create') }}";
-                    productForm.submit();
+                    const idCat = categorySelect.value;
+                    const url = new URL("{{ route('admin.produk.create') }}");
+                    url.searchParams.set('id_cat', idCat);
+                    url.searchParams.set('shape_id', this.value);
+                    url.searchParams.set('sku', document.querySelector('[name="sku"]').value);
+                    url.searchParams.set('nama_produk', document.querySelector('[name="nama_produk"]')
+                        .value);
+                    url.searchParams.set('merk', document.querySelector('[name="merk"]').value);
+                    url.searchParams.set('tempratur', document.querySelector('[name="tempratur"]').value);
+                    window.location.href = url.toString();
                 });
             }
         });
