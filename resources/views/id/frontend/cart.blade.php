@@ -321,6 +321,14 @@
         <div class="breadcrumb">
             <a href="{{ route('id.frontend.produk') }}">Home</a> > Shopping Cart
         </div>
+        @if ($noAddress ?? false)
+            <div class="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded mb-6">
+                ⚠️ Anda belum memiliki alamat pengiriman.
+                <a href="{{ route('id.customer.address.create') }}" class="font-bold underline ml-1">
+                    Tambah Alamat Sekarang
+                </a>
+            </div>
+        @endif
 
         @if (session('success'))
             <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
