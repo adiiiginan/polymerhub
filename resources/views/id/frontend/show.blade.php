@@ -303,7 +303,7 @@
                                 method: 'POST',
                                 body: new FormData(this),
                                 headers: {
-                                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+
                                     'Accept': 'application/json'
                                 }
                             })
@@ -342,8 +342,9 @@
                                     }
                                 }
                             })
-                            .catch(() => {
-                                alert('Terjadi kesalahan');
+                            .catch((err) => {
+                                console.error('Fetch error:', err); // cek di browser console
+                                alert('Terjadi kesalahan: ' + err.message);
                             })
                             .finally(() => {
                                 addToCartButton.textContent = 'Masukan Keranjang';

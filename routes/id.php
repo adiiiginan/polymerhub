@@ -38,6 +38,7 @@ Route::prefix('id')->name('id.')->group(function () {
         Route::get('/produk', [ProductController::class, 'index'])->name('produk');
         Route::get('/produk/{id}', [ProductController::class, 'show'])->name('produk.show');
         Route::post('/lionparcel/get-services', [LionParcelController::class, 'getServices'])->name('lionparcel.get-services');
+        Route::post('/cart/add', [CartController::class, 'storeLion'])->name('cart.add');
     });
 
     // Protected pages (auth required)
@@ -64,7 +65,7 @@ Route::prefix('id')->name('id.')->group(function () {
         // Cart and Checkout
         Route::prefix('frontend')->name('frontend.')->group(function () {
             Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
-            Route::post('/cart/add', [CartController::class, 'storeLion'])->name('cart.add');
+
             Route::delete('/cart/remove/{item}', [CartController::class, 'destroy'])->name('cart.remove');
             Route::post('/cart/checkout', [CartController::class, 'checkout'])->name('cart.checkout');
             Route::post('/cart/checkout-lion-parcel', [CartController::class, 'checkoutLionParcel'])->name('cart.checkout-lion-parcel');
