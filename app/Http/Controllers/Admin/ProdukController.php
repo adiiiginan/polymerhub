@@ -73,7 +73,7 @@ class ProdukController extends Controller
             return view('admin.produk.partials.produk_table', compact('produk'))->render();
         }
 
-        return view('admin.Produk.index', compact('produk'));
+        return view('admin.produk.index', compact('produk'));
     }
 
     // =========================================================
@@ -99,7 +99,7 @@ class ProdukController extends Controller
 
         $fieldConfig = $this->getFieldConfig($selectedCat);
 
-        return view('admin.Produk.create', array_merge(
+        return view('admin.produk.create', array_merge(
             compact('kode', 'kategori', 'environment', 'shapes', 'ukurans', 'produkCategory', 'selectedCat'),
             $fieldConfig
         ));
@@ -368,7 +368,7 @@ class ProdukController extends Controller
 
         $fieldConfig = $this->getFieldConfig($selectedCat);
 
-        return view('admin.Produk.edit', array_merge(
+        return view('admin.produk.edit', array_merge(
             compact('produk', 'kategori', 'environment', 'shapes', 'ukurans', 'produkCategory', 'selectedCat'),
             $fieldConfig
         ));
