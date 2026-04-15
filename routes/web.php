@@ -61,7 +61,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/api/produk-fields/{category}', [App\Http\Controllers\Admin\ProdukController::class, 'getFieldsByCategory'])->name('produk.fields_by_category');
         // Ship Routes
         Route::get('/ship/shipment', [ShipController::class, 'shipment'])->name('ship.shipment');
-        Route::post('/ship/update-resi-lion/{id}', [ShipController::class, 'updateResiLion'])->name('admin.lion.update-resi');
+        Route::post('/ship/update-resi-lion/{id}', [ShipController::class, 'updateResiLion'])->name('lion.update-resi');
         Route::post('/ship/create-shipment', [ShipController::class, 'createShipment'])->name('ship.create-shipment');
         Route::get('/ship/print_surat_jalan_dan_resi/{id}', [ShipController::class, 'print_surat_jalan'])->name('ship.print_surat_jalan_dan_resi');
         Route::get('/ship/packing-slip/{id}', [ShipController::class, 'packing_slip'])->name('ship.packing_slip');

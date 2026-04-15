@@ -12,6 +12,7 @@ use App\Models\TransaksiInvoice;
 use App\Services\FedexService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use App\Models\LionLog;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
@@ -163,53 +164,80 @@ class ShipController extends Controller
 
     public function updateResiLion(Request $request, $id)
     {
-        $request->validate([
-            'no_resi' => 'required|string|max:255',
-        ]);
-
         try {
             DB::beginTransaction();
 
             $invoice = TransaksiInvoice::findOrFail($id);
             $transaksi = $invoice->transaksi;
 
-            // Update no_resi di invoice
-            $invoice->no_resi = $request->no_resi;
-            $invoice->jasa_ekspedisi = 'Lion Parcel';
-            $invoice->status = 3; // Mark as shipped
+            // Ambil data lion shipment dari transaksi (sudah ada sejak checkout)
+            $lionShipment = LionShipment::where('idtrans', $transaksi->id)->first();
+
+            if (!$lionShipment || empty($lionShipment->tracking_number)) {
+                return redirect()->back()->with('error', 'Data Lion Parcel shipment tidak ditemukan.');
+            }
+
+            // Update status invoice
+            $invoice->status = 3;
             $invoice->save();
 
             // Update status transaksi
-            $transaksi->status = 3; // Dikirim
+            $transaksi->status = 3;
             $transaksi->shipped_at = now();
             $transaksi->save();
 
-            // Catat ke proses transaksi, hindari duplikat
+            // Simpan ke transaksi_proses menggunakan no_resi dari LionShipment
             TransaksiProses::updateOrCreate(
                 ['idtrans' => $transaksi->id],
                 [
                     'kode_ship' => 'SHIP-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
-                    'status' => 3, // Dikirim
-                    'kode_inv' => $invoice->kode_inv,
-                    'no_resi' => $request->no_resi,
-                    'expedisi' => 'Lion Parcel',
+                    'status'    => 3,
+                    'kode_inv'  => $invoice->kode_inv,
+                    'no_resi'   => $lionShipment->tracking_number, // dari checkout
+                    'expedisi'  => 'Lion Parcel',
                 ]
             );
 
+            // Simpan log berdasarkan data booking sebelumnya
+            LionLog::create([
+                'endpoint'      => 'update_resi_lion',
+                'status_code'   => 200,
+                'request_json'  => json_encode([
+                    'invoice_id' => $invoice->id,
+                    'kode_inv'   => $invoice->kode_inv,
+                    'idtrans'    => $transaksi->id,
+                ]),
+                'response_json' => json_encode([
+                    'tracking_number' => $lionShipment->tracking_number,
+                    'booking_id'      => $lionShipment->booking_id,
+                    'service_type'    => $lionShipment->service_type,
+                    'rate_response'   => json_decode($lionShipment->rate_response),
+                ]),
+                'status' => 'success',
+            ]);
+
             DB::commit();
 
-            // Siapkan URL untuk cetak
-            $printUrl = route('admin.lion.print', $invoice->id);
-
-            session()->flash('success', 'Nomor resi berhasil disimpan. AWB siap dicetak.');
-            session()->flash('print_url', $printUrl);
-
-
+            session()->flash('success', 'Status pengiriman berhasil diperbarui. AWB siap dicetak.');
             return redirect()->route('admin.ship.show', $invoice->id);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Gagal memperbarui nomor resi Lion Parcel: ' . $e->getMessage(), ['invoice_id' => $id]);
-            return redirect()->back()->with('error', 'Gagal memperbarui nomor resi: ' . $e->getMessage());
+
+            Log::error('Gagal update resi Lion Parcel: ' . $e->getMessage(), ['invoice_id' => $id]);
+
+            try {
+                LionLog::create([
+                    'endpoint'      => 'update_resi_lion',
+                    'status_code'   => 500,
+                    'request_json'  => json_encode(['invoice_id' => $id]),
+                    'response_json' => json_encode(['error' => $e->getMessage()]),
+                    'status'        => 'failed',
+                ]);
+            } catch (\Exception $logEx) {
+                Log::error('Gagal menulis ke lion_logs: ' . $logEx->getMessage());
+            }
+
+            return redirect()->back()->with('error', 'Gagal memperbarui status: ' . $e->getMessage());
         }
     }
 
@@ -413,7 +441,6 @@ class ShipController extends Controller
             $invoice = TransaksiInvoice::findOrFail($invoice_id);
             $transaksi = Transaksi::findOrFail($invoice->idtrans);
 
-            // Update status
             $invoice->status = 3;
             $invoice->save();
 
@@ -421,40 +448,68 @@ class ShipController extends Controller
             $transaksi->shipped_at = now();
             $transaksi->save();
 
-            // Create TransaksiProses record
             TransaksiProses::create([
-                'idtrans' => $invoice->idtrans,
-                'kode_ship' => 'SHIP-' . date('Ymd') . '-' . strtoupper(Str::random(4)), // Or generate as needed
-                'status' => 3, // Dikirim
-                'kode_inv' => $invoice->kode_inv,
+                'idtrans'    => $invoice->idtrans,
+                'kode_ship'  => 'SHIP-' . date('Ymd') . '-' . strtoupper(Str::random(4)),
+                'status'     => 3,
+                'kode_inv'   => $invoice->kode_inv,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
             DB::commit();
 
-            // Prepare the redirect URL for printing
+            // Ambil lion shipment
             $lionShipment = LionShipment::where('idtrans', $invoice->idtrans)->first();
             if (!$lionShipment || empty($lionShipment->tracking_number)) {
                 return response()->json(['error' => 'Nomor STT tidak ditemukan.'], 404);
             }
 
             $sttNumber = $lionShipment->tracking_number;
-            $clientId = env('LION_PARCEL_CLIENT_ID', '2407');
-            $printUrl = env('LION_PARCEL_PRINT_URL', 'https://stg-genesis.lionparcel.com/print/stt');
-            $queryParams = http_build_query(['q' => $sttNumber, 'client' => $clientId]);
-            $fullUrl = $printUrl . '?' . $queryParams;
+            $clientId  = env('LION_PARCEL_CLIENT_ID', '2407');
+            $printUrl  = env('LION_PARCEL_PRINT_URL', 'https://stg-genesis.lionparcel.com/print/stt');
+            $fullUrl   = $printUrl . '?' . http_build_query(['q' => $sttNumber, 'client' => $clientId]);
 
-            // Flash a success message to the session
+            // Simpan log setelah commit berhasil
+            LionLog::create([
+                'endpoint'      => 'print_awb_lion',
+                'status_code'   => 200,
+                'request_json'  => json_encode([
+                    'invoice_id' => $invoice->id,
+                    'kode_inv'   => $invoice->kode_inv,
+                    'idtrans'    => $invoice->idtrans,
+                ]),
+                'response_json' => json_encode([
+                    'tracking_number' => $sttNumber,
+                    'booking_id'      => $lionShipment->booking_id,
+                    'print_url'       => $fullUrl,
+                ]),
+                'status' => 'success',
+            ]);
+
             session()->flash('success', 'Status pengiriman berhasil diperbarui dan AWB siap dicetak.');
 
             return response()->json([
-                'success' => true,
+                'success'   => true,
                 'print_url' => $fullUrl
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Gagal memperbarui status setelah cetak AWB: ' . $e->getMessage());
+
+            // Log error ke lion_logs
+            try {
+                LionLog::create([
+                    'endpoint'      => 'print_awb_lion',
+                    'status_code'   => 500,
+                    'request_json'  => json_encode(['invoice_id' => $invoice_id]),
+                    'response_json' => json_encode(['error' => $e->getMessage()]),
+                    'status'        => 'failed',
+                ]);
+            } catch (\Exception $logEx) {
+                Log::error('Gagal menulis ke lion_logs: ' . $logEx->getMessage());
+            }
+
             return response()->json(['error' => 'Terjadi kesalahan saat memperbarui status.'], 500);
         }
     }
