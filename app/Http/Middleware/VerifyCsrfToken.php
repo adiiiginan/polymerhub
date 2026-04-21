@@ -12,6 +12,7 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        '*/frontend/get-fedex-rates'
+        '*/frontend/get-fedex-rates',
+        'api/webhook/lionparcel',
     ];
 }

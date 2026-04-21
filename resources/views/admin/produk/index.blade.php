@@ -76,7 +76,7 @@
                                     <th>Kode</th>
                                     <th>Nama</th>
                                     <th>Image</th>
-                                    <th class="text-end">Varian</th>
+                                    <th></th>
                                     <th class="text-end">Status</th>
                                     <th class="text-end">Aksi</th>
                                 </tr>
@@ -102,9 +102,7 @@
                                                         <tr class="text-muted">
                                                             <th>SKU</th>
                                                             <th>Jenis</th>
-                                                            <th>Ukuran</th>
-                                                            <th>Dimensi (LxWxH)</th>
-                                                            <th>Berat (kg)</th>
+
                                                             <th class="text-end">Harga</th>
                                                             <th class="text-end">Stok</th>
                                                         </tr>
@@ -114,16 +112,9 @@
                                                             <tr>
                                                                 <td>{{ $stok->sku ?? '-' }}</td>
                                                                 <td>{{ $stok->jenis->jenis ?? '-' }}</td>
-                                                                <td>{{ $stok->ukuran->nama_ukuran ?? '-' }}</td>
-                                                                <td>
-                                                                    @if ($stok->length && $stok->width && $stok->height)
-                                                                        {{ $stok->length }} x {{ $stok->width }} x
-                                                                        {{ $stok->height }} cm
-                                                                    @else
-                                                                        -
-                                                                    @endif
-                                                                </td>
-                                                                <td>{{ $stok->weight ?? '-' }}</td>
+
+
+
                                                                 <td class="text-end">
                                                                     {{ number_format($stok->harga, 2, ',', '.') }}</td>
                                                                 <td class="text-end">{{ $stok->stok }}</td>

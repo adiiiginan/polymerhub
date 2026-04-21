@@ -10,7 +10,7 @@
             <!-- Desktop Navigation -->
             <nav class="hidden lg:flex items-center space-x-8">
                 <a href="{{ route('id.home') }}"
-                    class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('home') ? 'font-semibold text-blue-600' : '' }}">Home</a>
+                    class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('id.home') ? 'font-semibold text-blue-600' : '' }}">Home</a>
                 <div class="relative" x-data="{ open: false }">
                     <button @click="open = !open" @click.away="open = false"
                         class="flex items-center text-gray-600 hover:text-blue-600 transition-colors">
@@ -21,17 +21,22 @@
                         </svg>
                     </button>
                     <div x-show="open" class="absolute mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20">
+
                         <a href="{{ route('id.frontend.produk') }}"
-                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">All Products</a>
+                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Rulon</a>
+                        <a href="{{ route('id.frontend.category.tygon') }}"
+                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Tygon</a>
+                        <a href="{{ route('id.frontend.category.toptape') }}"
+                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Top Tape</a>
                     </div>
                 </div>
                 <a href="{{ route('id.frontend.white') }}"
-                    class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('frontend.white') ? 'font-semibold text-blue-600' : '' }}">White
+                    class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('id.frontend.white') ? 'font-semibold text-blue-600' : '' }}">White
                     Paper</a>
                 <a href="{{ route('id.frontend.brochure') }}"
-                    class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('frontend.brochure') ? 'font-semibold text-blue-600' : '' }}">Brochure</a>
+                    class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('id.frontend.brochure') ? 'font-semibold text-blue-600' : '' }}">Brochure</a>
                 <a href="{{ route('id.frontend.contact') }}"
-                    class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('frontend.contact') ? 'font-semibold text-blue-600' : '' }}">Contact
+                    class="text-gray-600 hover:text-blue-600 transition-colors {{ request()->routeIs('id.frontend.contact') ? 'font-semibold text-blue-600' : '' }}">Contact
                     Us</a>
             </nav>
 
@@ -131,8 +136,8 @@
     <!-- Mobile Menu -->
     <div x-show="mobileMenuOpen" class="lg:hidden" x-cloak>
         <div class="pt-2 pb-3 space-y-1 sm:px-3">
-            <a href="{{ route('home') }}"
-                class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 {{ request()->routeIs('home') ? 'bg-gray-100 text-gray-900' : '' }}">Home</a>
+            <a href="{{ route('id.home') }}"
+                class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 {{ request()->routeIs('id.home') ? 'bg-gray-100 text-gray-900' : '' }}">Home</a>
             <div x-data="{ open: false }">
                 <button @click="open = !open"
                     class="w-full text-left flex justify-between items-center px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50">
@@ -147,6 +152,12 @@
                     <a href="{{ route('id.frontend.produk') }}"
                         class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50">All
                         Products</a>
+                    @if (isset($productCategories))
+                        @foreach ($productCategories as $category)
+                            <a href="{{ route('id.frontend.produk', ['category' => $category->id]) }}"
+                                class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50">{{ $category->category }}</a>
+                        @endforeach
+                    @endif
                 </div>
             </div>
             <a href="{{ route('id.frontend.white') }}"

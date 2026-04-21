@@ -775,12 +775,11 @@ class CartController extends Controller
         ];
     }
 
-    public function checkoutLionParcel(Request $request, LionParcelService $lionParcelService)
+    public function checkoutLionParcel(Request $request)
     {
         DB::beginTransaction();
 
         try {
-
             $customer = Auth::guard('customer')->user();
             if (!$customer) {
                 throw new \Exception('Customer not authenticated.');
@@ -809,9 +808,8 @@ class CartController extends Controller
         | HITUNG TOTAL
         |--------------------------------------------------------------------------
         */
-
-            $subtotal = $cart->items->sum(fn($item) => $item->harga * $item->qty);
-            $total = $subtotal + $cart->shipping_cost;
+            $subtotal    = $cart->items->sum(fn($item) => $item->harga * $item->qty);
+            $total       = $subtotal + $cart->shipping_cost;
             $idtransaksi = 'TRX-' . strtoupper(Str::random(10));
 
             /*
@@ -819,97 +817,55 @@ class CartController extends Controller
         | SIMPAN TRANSAKSI
         |--------------------------------------------------------------------------
         */
-
             $transaksi = Transaksi::create([
-                'idtransaksi' => $idtransaksi,
-                'iduser' => $customer->id,
-                'status' => 1,
-                'subtotal' => $subtotal,
-                'shipping_cost' => $cart->shipping_cost,
-                'shipping_service' => strtoupper($cart->shipping_service),
+                'idtransaksi'       => $idtransaksi,
+                'iduser'            => $customer->id,
+                'status'            => 1, // Pending
+                'subtotal'          => $subtotal,
+                'shipping_cost'     => $cart->shipping_cost,
+                'shipping_service'  => strtoupper($cart->shipping_service),
                 'shipping_currency' => 'IDR',
-                'address_id' => $cart->address_id,
-                'total' => $total,
-                'expedisi' => 'Lion Parcel',
+                'address_id'        => $cart->address_id,
+                'total'             => $total,
+                'expedisi'          => 'Lion Parcel',
             ]);
 
             foreach ($cart->items as $item) {
                 TransaksiDetail::create([
-                    'idtrans' => $transaksi->id,
-                    'iduser' =>  $customer->id,
-                    'idproduk' => $item->idproduk,
-                    'qty' => $item->qty,
-                    'harga' => $item->harga,
-                    'total' => $item->harga * $item->qty,
-                    'gros' => $item->gros,
-                    'id_jenis' => $item->id_jenis,
+                    'idtrans'   => $transaksi->id,
+                    'iduser'    => $customer->id,
+                    'idproduk'  => $item->idproduk,
+                    'qty'       => $item->qty,
+                    'harga'     => $item->harga,
+                    'total'     => $item->harga * $item->qty,
+                    'gros'      => $item->gros,
+                    'id_jenis'  => $item->id_jenis,
                     'id_ukuran' => $item->id_ukuran,
-                    'subtotal' => $item->harga * $item->qty,
+                    'subtotal'  => $item->harga * $item->qty,
                 ]);
             }
 
             /*
         |--------------------------------------------------------------------------
-        | PAYLOAD LION
+        | HAPUS CART
         |--------------------------------------------------------------------------
         */
-
-            $payload = $this->prepareLionParcelPayload($cart, $receiverAddress, $idtransaksi, $subtotal);
-
-            Log::channel('lionparcel')->info('FINAL_LION_PAYLOAD', $payload);
-
-            // Debug: Return the payload as a JSON response to inspect in the browser's network tab.
-            // return response()->json($payload);
-
-            /*
-        |--------------------------------------------------------------------------
-        | HIT API LION
-        |--------------------------------------------------------------------------
-        */
-
-            $response = $lionParcelService->createShipment($payload);
-
-            if (!($response['success'] ?? false)) {
-                throw new \Exception($response['message'] ?? 'Lion API gagal.');
-            }
-
-            /*
-        |--------------------------------------------------------------------------
-        | UPDATE DATA
-        |--------------------------------------------------------------------------
-        */
-
-            $transaksi->update([
-                'lion_parcel_booking_id' => $response['data']['stt'][0]['stt_id'] ?? null,
-                'lion_parcel_stt' => $response['data']['stt'][0]['stt_no'] ?? null,
-                'lion_parcel_response' => json_encode($response),
-            ]);
-
-            LionShipment::create([
-                'idtrans' => $transaksi->id,
-                'tracking_number' =>  $response['data']['stt'][0]['stt_no'] ?? null,
-                'booking_id' => $response['data']['stt'][0]['stt_id'] ?? null,
-                'service_type' => $cart->shipping_service,
-                'total_charge' => $cart->shipping_cost,
-                'status' => '1',
-                'rate_response' => json_encode($response),
-                'shipper_address' => json_encode(config('services.lionparcel.shipper')),
-                'recipient_address' => json_encode($payload['stt']),
-                'weight' => $payload['stt']['stt_pieces'][0]['stt_piece_gross_weight'] ?? 0,
-                'currency' => 'IDR',
-            ]);
-
             $cart->items()->delete();
             $cart->delete();
 
             DB::commit();
 
+            Log::channel('lionparcel')->info('CHECKOUT_SUCCESS', [
+                'idtransaksi' => $idtransaksi,
+                'iduser'      => $customer->id,
+                'total'       => $total,
+            ]);
+
             return response()->json([
-                'status' => 'success',
+                'status'       => 'success',
                 'redirect_url' => route('id.frontend.checkout.success', $transaksi->idtransaksi)
             ]);
         } catch (\Throwable $e) {
-
             DB::rollBack();
 
             Log::channel('lionparcel')->error('CHECKOUT_ERROR', [
@@ -917,7 +873,7 @@ class CartController extends Controller
             ]);
 
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => $e->getMessage()
             ], 500);
         }

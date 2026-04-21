@@ -36,6 +36,8 @@ Route::prefix('id')->name('id.')->group(function () {
         Route::get('/contact', fn() => view('id.frontend.contact'))->name('contact');
         Route::post('/contact', [ContactController::class, 'store'])->name('contact.store');
         Route::get('/produk', [ProductController::class, 'index'])->name('produk');
+        Route::get('/category/tygon', [ProductController::class, 'showTygon'])->name('category.tygon');
+        Route::get('/category/top-tape', [ProductController::class, 'showTopTape'])->name('category.toptape');
         Route::get('/produk/{id}', [ProductController::class, 'show'])->name('produk.show');
         Route::post('/lionparcel/get-services', [LionParcelController::class, 'getServices'])->name('lionparcel.get-services');
         Route::post('/cart/add', [CartController::class, 'storeLion'])->name('cart.add');

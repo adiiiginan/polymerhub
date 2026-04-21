@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\View;
+use App\Models\ProdukCategory;
 
 use Illuminate\Pagination\Paginator;
 
@@ -26,5 +28,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot()
     {
         Paginator::useBootstrapFive();
+
+        View::composer('id.partials.navbar', function ($view) {
+            $view->with('productCategories', ProdukCategory::all());
+        });
     }
 }

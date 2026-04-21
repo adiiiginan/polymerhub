@@ -2,19 +2,14 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-
-/*
-|--------------------------------------------------------------------------
-| API Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| is assigned the "api" middleware group. Enjoy building your API!
-|
-*/
-
+use App\Http\Controllers\Webhook\LionParcelWebhookController;
 use App\Http\Controllers\LocationController;
+
+
+
+
+
+Route::post('/webhook/lionparcel', [LionParcelWebhookController::class, 'handle']);
 
 Route::get('/locations/countries', [LocationController::class, 'getCountries']);
 Route::get('/locations/{countryCode}/has-states', [LocationController::class, 'hasStates']);

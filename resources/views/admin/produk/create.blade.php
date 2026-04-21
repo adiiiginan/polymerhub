@@ -256,7 +256,7 @@
                                                 <span class="tygon-unit badge bg-secondary ms-1"
                                                     id="label-id-unit">-</span>
                                             </label>
-                                            <input type="number" step="0.001" name="inner_diameter"
+                                            <input type="text" step="0.001" name="inner_diameter"
                                                 class="form-control"
                                                 value="{{ old('inner_diameter', request('inner_diameter')) }}"
                                                 placeholder="e.g. 4.762" id="input-inner-diameter">
@@ -267,7 +267,7 @@
                                                 <span class="tygon-unit badge bg-secondary ms-1"
                                                     id="label-od-unit">-</span>
                                             </label>
-                                            <input type="number" step="0.001" name="outer_diameter"
+                                            <input type="text" step="0.001" name="outer_diameter"
                                                 class="form-control"
                                                 value="{{ old('outer_diameter', request('outer_diameter')) }}"
                                                 placeholder="e.g. 6.350" id="input-outer-diameter">
@@ -278,7 +278,7 @@
                                                 <span class="tygon-unit badge bg-secondary ms-1"
                                                     id="label-wall-unit">-</span>
                                             </label>
-                                            <input type="number" step="0.001" name="wall_thickness"
+                                            <input type="text" step="0.001" name="wall_thickness"
                                                 class="form-control"
                                                 value="{{ old('wall_thickness', request('wall_thickness')) }}"
                                                 placeholder="e.g. 0.794" id="input-wall-thickness">
@@ -302,7 +302,7 @@
                                                 <span class="tygon-unit badge bg-secondary ms-1"
                                                     id="label-bend-unit">-</span>
                                             </label>
-                                            <input type="number" step="0.001" name="min_bend_radius"
+                                            <input type="text" step="0.001" name="min_bend_radius"
                                                 class="form-control"
                                                 value="{{ old('min_bend_radius', request('min_bend_radius')) }}"
                                                 placeholder="e.g. 0.125" id="input-min-bend">
@@ -562,36 +562,8 @@
                                         </div>
                                     </div>
 
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label class="form-label">Tensile Strength (MPa)</label>
-                                            <input type="number" step="0.01" name="tensile" class="form-control"
-                                                value="{{ old('tensile') }}">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label">Elongation (%)</label>
-                                            <input type="text" name="elongation" class="form-control"
-                                                value="{{ old('elongation') }}" placeholder="e.g. 350">
-                                        </div>
-                                    </div>
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label class="form-label">Specific Gravity</label>
-                                            <input type="number" step="0.01" name="spesific" class="form-control"
-                                                value="{{ old('spesific') }}">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label">Environment</label>
-                                            <select name="id_environmant" class="form-select">
-                                                <option value="">-- Pilih --</option>
-                                                @foreach ($environment as $env)
-                                                    <option value="{{ $env->id }}"
-                                                        {{ old('id_environmant') == $env->id ? 'selected' : '' }}>
-                                                        {{ $env->envi }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                    </div>
+
+
                                 </div>
                             </div>
 

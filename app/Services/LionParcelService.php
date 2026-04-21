@@ -98,4 +98,46 @@ class LionParcelService
 
         return $response;
     }
+
+
+    public function getDetailSTT(string $sttNo): array
+    {
+        $response = Http::withHeaders([
+            'Authorization' => 'Basic ' . $this->basicAuth,
+            'x-api-key'     => $this->apiKey,
+            'Accept'        => 'application/json',
+        ])->get('https://api-stg-middleware.thelionparcel.com/v3/stt/detail', [
+            'q' => $sttNo
+        ]);
+
+        LionLog::create([
+            'endpoint'      => '/v3/stt/detail',
+            'request_json'  => json_encode(['q' => $sttNo]),
+            'response_json' => $response->body(),
+            'status_code'   => $response->status(),
+        ]);
+
+        if ($response->failed()) {
+            Log::error('LION_GET_DETAIL_STT_FAILED', [
+                'stt_no'   => $sttNo,
+                'response' => $response->json(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Gagal mengambil detail STT',
+                'data'    => null,
+            ];
+        }
+
+        Log::info('LION_GET_DETAIL_STT_SUCCESS', [
+            'stt_no'   => $sttNo,
+            'response' => $response->json(),
+        ]);
+
+        return [
+            'success' => true,
+            'data'    => $response->json('stts'),
+        ];
+    }
 }
