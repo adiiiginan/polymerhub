@@ -4,11 +4,7 @@
 
 @section('content')
 
-    <div style="background:red;color:white;padding:1rem;">
-        DEBUG: produk count = {{ $produk->total() }} |
-        activeCategory = {{ $activeCategory->id ?? 'NULL' }} |
-        category = {{ $activeCategory->category ?? 'NULL' }}
-    </div>
+
     <div style="--main-color: #1A365D; --accent-color: #5DADE2; --accent-light: #EBF5FB;">
 
         {{-- Hero Banner --}}
@@ -140,7 +136,7 @@
                     position: relative; flex-shrink: 0;
                 ">
                                             @if ($item->gambar)
-                                                <img src="{{ asset('storage/' . $item->gambar) }}"
+                                                <img src="{{ asset('backend/assets/media/produk/' . $item->gambar) }}"
                                                     alt="{{ $item->nama_produk }}"
                                                     style="width: 100%; height: 100%; object-fit: contain; border-radius: 8px; padding: 6px;">
                                             @else

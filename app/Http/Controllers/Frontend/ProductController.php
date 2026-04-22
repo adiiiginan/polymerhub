@@ -163,30 +163,25 @@ class ProductController extends Controller
     {
         $locale = $request->segment(1);
 
-        // ✅ Tabel yang benar: produk_category, kolom: category
-        $activeCategory = ProdukCategory::where('category', 'LIKE', '%tygon 3350%')->firstOrFail();
+        $activeCategory = ProdukCategory::where('category', 'LIKE', '%tygon%')->firstOrFail();
 
-        $cek = Produk::where('id_kat', $activeCategory->id)->get();
-        dd($cek->count(), $cek->first()); //
-        $query = Produk::where('id_kat', $activeCategory->id);
+        // ✅ Query pakai id_cat, bukan id_kat
+        $query = Produk::where('id_cat', $activeCategory->id);
 
-        // Filter: Mating Surface Hardness
         if ($request->filled('mating_surface_hardness')) {
             $query->whereIn('mating', $request->mating_surface_hardness);
         }
 
-        // Filter: Pressure
         if ($request->filled('pressure')) {
             $query->whereIn('maximum_p', $request->pressure);
         }
 
-        $produk = $query->groupBy('nama_produk')->paginate(12);
+        $produk = $query->paginate(12);
 
-        // Opsi filter sidebar
-        $matings = Produk::where('id_kat', $activeCategory->id)
+        $matings = Produk::where('id_cat', $activeCategory->id)
             ->select('mating')->distinct()->whereNotNull('mating')->get();
 
-        $pressures = Produk::where('id_kat', $activeCategory->id)
+        $pressures = Produk::where('id_cat', $activeCategory->id)
             ->select('maximum_p')->distinct()->whereNotNull('maximum_p')->get();
 
         return view($locale . '.frontend.category.tygon', compact(

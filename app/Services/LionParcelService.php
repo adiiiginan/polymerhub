@@ -222,4 +222,35 @@ class LionParcelService
             'data'    => $response->json('stts'),
         ];
     }
+
+    public function getTrackingSTT(string $sttNo): array
+    {
+        $response = Http::withHeaders([
+            'Authorization' => 'Basic ' . $this->basicAuth,
+            'x-api-key'     => $this->apiKey,
+            'Accept'        => 'application/json',
+        ])->get('https://api-stg-middleware.thelionparcel.com/v3/stt/track', [
+            'q' => $sttNo
+        ]);
+
+        LionLog::create([
+            'endpoint'      => '/v3/stt/track',
+            'request_json'  => json_encode(['q' => $sttNo]),
+            'response_json' => $response->body(),
+            'status_code'   => $response->status(),
+        ]);
+
+        if ($response->failed()) {
+            return [
+                'success' => false,
+                'message' => 'STT tidak ditemukan',
+                'data'    => null,
+            ];
+        }
+
+        return [
+            'success' => true,
+            'data'    => $response->json('stts'),
+        ];
+    }
 }

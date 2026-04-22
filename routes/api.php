@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Webhook\LionParcelWebhookController;
 use App\Http\Controllers\LocationController;
+use App\Http\Controllers\Frontend\TrackingController;
 
 
 
@@ -20,6 +21,9 @@ Route::get('/locations/{countryCode}/{stateCode}/cities', [LocationController::c
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+// routes/web.php atau routes/api.php
+Route::get('/tracking', [TrackingController::class, 'track']);
 
 Route::get('/states/{countryCode}', function ($countryCode) {
     $states = \App\Models\States::where('country_code', $countryCode)->get();
