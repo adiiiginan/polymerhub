@@ -18,3 +18,8 @@ yarn-error.log
 /.vscode
 *.rar
 public/backend/assets/media/faktur/*
+*.zip
+*.sql
+*.rar
+*.tar.gz
+/database.zip
