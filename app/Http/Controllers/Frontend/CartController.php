@@ -137,6 +137,18 @@ class CartController extends Controller
         return view('frontend.cart', $viewData);
     }
 
+    public function pesananDiterima(Transaksi $order)
+    {
+        if ($order->iduser !== Auth::guard('customer')->id()) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $order->status = 4; // Status "Selesai"
+        $order->save();
+
+        return redirect()->back()->with('success', 'Pesanan telah ditandai sebagai selesai.');
+    }
+
     public function showTransaksi(Transaksi $transaksi)
     {
         return view('id.frontend.transaksi.show', compact('transaksi'));

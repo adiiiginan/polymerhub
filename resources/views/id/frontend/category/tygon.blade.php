@@ -231,7 +231,7 @@
 
                                                 <a href="{{ route('id.frontend.produk.show', $item->id) }}"
                                                     class="view-options-button"
-                                                    data-url="{{ route('id.frontend.produk.show', $item->id) }}"
+                                                    data-url="{{ route('id.frontend.category.produktygon', $item->id) }}"
                                                     style="font-size: 11px; padding: 5px 12px; background: var(--main-color); color: white; border-radius: 6px; text-decoration: none;">
                                                     Lihat Detail
                                                 </a>

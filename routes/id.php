@@ -37,6 +37,7 @@ Route::prefix('id')->name('id.')->group(function () {
         Route::post('/contact', [ContactController::class, 'store'])->name('contact.store');
         Route::get('/produk', [ProductController::class, 'index'])->name('produk');
         Route::get('/category/tygon', [ProductController::class, 'showTygon'])->name('category.tygon');
+        Route::get('/category/produktygon/{id}', [ProductController::class, 'showProdukTygon'])->name('category.produktygon');
         Route::get('/category/top-tape', [ProductController::class, 'showTopTape'])->name('category.toptape');
         Route::get('/produk/{id}', [ProductController::class, 'show'])->name('produk.show');
         Route::post('/lionparcel/get-services', [LionParcelController::class, 'getServices'])->name('lionparcel.get-services');
@@ -48,6 +49,7 @@ Route::prefix('id')->name('id.')->group(function () {
         // Customer
         Route::prefix('customer')->name('customer.')->group(function () {
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+            Route::get('/invoice/{id}', [DashboardController::class, 'showInvoice'])->name('invoice.show');
             Route::get('/profile', [DashboardController::class, 'profile'])->name('profile');
             Route::get('/address/create', [DashboardController::class, 'createAddress'])->name('address.create');
             Route::post('/address', [DashboardController::class, 'buatalamat'])->name('address.store');
@@ -62,6 +64,7 @@ Route::prefix('id')->name('id.')->group(function () {
             Route::post('/get-zip-by-country', [DashboardController::class, 'getZipByCountry'])->name('get-zip-by-country');
             Route::get('/get-zip-code/{cityId}', [DashboardController::class, 'getZipCode']);
             Route::post('/validate-address', [DashboardController::class, 'validateAddress'])->name('validate-address');
+            Route::post('/upload-payment', [DashboardController::class, 'uploadBukti'])->name('upload.payment');
         });
 
         // Cart and Checkout
@@ -74,6 +77,7 @@ Route::prefix('id')->name('id.')->group(function () {
             Route::post('/cart/set-address', [CartController::class, 'setAddress'])->name('cart.setAddress');
             Route::post('/cart/set-shipping', [CartController::class, 'setShipping'])->name('cart.setShipping');
             Route::post('/cart/update-shipping-selection', [CartController::class, 'updateShippingSelection'])->name('cart.updateShippingSelection');
+            Route::post('/orders/{order}/diterima', [CartController::class, 'pesananDiterima'])->name('orders.diterima');
         });
 
         Route::get('/transaksi/{id}', [CartController::class, 'transaksi'])->name('transaksi');

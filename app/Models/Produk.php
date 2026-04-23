@@ -36,6 +36,7 @@ class Produk extends Model
         'fda',
         'usp',
         'mating',
+        'id_cat',
         'id_kat',
         'max_pv',
         'maximum_p',
@@ -46,6 +47,16 @@ class Produk extends Model
         'spesific',
         'friction',
         'id_jenis',
+        'tygon_size_category',
+        'inner_diameter',
+        'outer_diameter',
+        'wall_thickness',
+        'min_bend_radius',
+        'tygon_length',
+        'tygon_working_pressure_73',
+        'tygon_working_pressure_320',
+        'tygon_vacuum_73',
+        'tygon_vacuum_320'
 
     ];
 

@@ -146,7 +146,7 @@
                                             @break
 
                                             {{-- ================= LION PARCEL ================= --}}
-                                            @case('LionParcel')
+                                            @case('Lion Parcel')
                                                 @if (isset($lionparcelShipment) && !empty($lionShipment->tracking_number))
                                                     <button id="printAwbButton" data-invoice-id="{{ $invoice->id }}"
                                                         class="btn btn-sm btn-success">

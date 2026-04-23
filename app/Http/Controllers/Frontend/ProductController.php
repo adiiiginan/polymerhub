@@ -201,4 +201,53 @@ class ProductController extends Controller
 
         return view($locale . '.frontend.category.toptape', compact('produk', 'activeCategory'));
     }
+
+    public function showProdukTygon(Request $request, $id)
+    {
+        $locale = $request->segment(1);
+        $produk = Produk::findOrFail($id);
+        $productIds = Produk::where('nama_produk', $produk->nama_produk)->pluck('id');
+
+        // Get all variants for the product, ensuring they have valid dimensions
+        $all_variants = ProdukStok::whereIn('id_produk', $productIds)
+            ->with(['jenis', 'ukuran'])
+            ->whereHas('jenis')
+            ->whereHas('ukuran', function ($q) {
+                $q->whereNotNull('nama_ukuran')->where('nama_ukuran', '!=', '');
+            })
+            ->get();
+
+        // Get unique shapes that have at least one valid variant
+        $jenis_unik = ProdukJenis::whereHas('stoks', function ($query) use ($productIds) {
+            $query->whereIn('id_produk', $productIds)
+                ->whereHas('ukuran', function ($q) {
+                    $q->whereNotNull('nama_ukuran')->where('nama_ukuran', '!=', '');
+                });
+        })->get();
+
+        // Create variations for JavaScript
+        $variants_data = $all_variants->map(function ($variant) {
+            if (!$variant->jenis || !$variant->ukuran || !$variant->ukuran->nama_ukuran) {
+                return null;
+            }
+            return [
+                'id'       => $variant->id,
+                'jenis_id' => $variant->id_jenis,
+                'ukuran_id' => $variant->id_ukuran,
+                'dimensi'  => $variant->ukuran->nama_ukuran,
+                'stok'     => $variant->stok,
+                'hargi'    => $variant->hargi,
+                'harga'    => $variant->harga,
+                'gambar'   => $variant->gambar ?? optional($variant->produk)->gambar,
+            ];
+        })->filter()->values();
+
+        $view_data = compact('produk', 'jenis_unik', 'variants_data');
+
+        if (view()->exists($locale . '.frontend.category.produktygon')) {
+            return view($locale . '.frontend.category.produktygon', $view_data);
+        }
+
+        return view('frontend.category.produktygon', $view_data);
+    }
 }

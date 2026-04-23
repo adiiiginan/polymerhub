@@ -115,6 +115,12 @@ class DashboardController extends Controller
             }
         }
 
+        $provinsi = LionProvinsi::all();
+        $kota = LionKota::all();
+        $kecamatan = LionKecamatan::all();
+        $kelurahan = LionKelurahan::all();
+        $kode_pos = LionKodePos::all();
+
 
         if (request()->segment(1) == 'id') {
             return view('id.customer.dashboard', compact(
@@ -135,7 +141,12 @@ class DashboardController extends Controller
                 'customOrders',
                 'customOrdersCount',
                 'shippedOrders',
-                'shippedOrdersCount'
+                'shippedOrdersCount',
+                'provinsi',
+                'kota',
+                'kecamatan',
+                'kelurahan',
+                'kode_pos'
             ));
         }
         return view('en.customer.dashboard', compact(
@@ -173,6 +184,10 @@ class DashboardController extends Controller
             return redirect()->back()->with('error', 'Unauthorized action.');
         }
 
+        if (request()->segment(1) == 'id') {
+            return view('id.customer.invoice.show', compact('invoice'));
+        }
+
         return view('en.customer.invoice.show', compact('invoice'));
     }
 
@@ -186,7 +201,7 @@ class DashboardController extends Controller
         $invoice = TransaksiInvoice::findOrFail($request->invoice_id);
 
         // Pastikan invoice milik user yang sedang login
-        if ($invoice->transaksi->iduser != auth()->id()) {
+        if ($invoice->transaksi->iduser != Auth::guard('customer')->id()) {
             return redirect()->back()->with('error', 'Unauthorized access.');
         }
 

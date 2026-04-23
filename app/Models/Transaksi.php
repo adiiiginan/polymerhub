@@ -33,7 +33,10 @@ class Transaksi extends Model
         'address_id',
         'shipping_currency',
         'shippinh_estimate',
-        'expedisi'
+        'expedisi',
+        'lion_parcel_stt',
+        'lion_parcel_booking_id',
+        'lion_parcel_response',
     ];
 
     public function details()

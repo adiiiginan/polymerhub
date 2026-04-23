@@ -140,11 +140,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="mb-3">
-                                        <label class="form-label">Temperature Range</label>
-                                        <input type="text" name="tempratur" class="form-control"
-                                            value="{{ request('tempratur', old('tempratur')) }}">
-                                    </div>
+
                                 </div>
                             </div>
 
@@ -234,14 +230,13 @@
                                         <select name="tygon_size_category" id="tygonSizeCategory"
                                             class="form-select border-info" required>
                                             <option value="">-- Pilih Kategori Ukuran --</option>
-                                            <option value="tubing_inventory"
-                                                {{ old('tygon_size_category', request('tygon_size_category')) == 'tubing_inventory' ? 'selected' : '' }}>
-                                                Tubing Inventory Size (inches)
-                                            </option>
-                                            <option value="metric"
-                                                {{ old('tygon_size_category', request('tygon_size_category')) == 'metric' ? 'selected' : '' }}>
-                                                Metric Sizes (mm)
-                                            </option>
+                                            @foreach ($jenis as $item)
+                                                <option value="{{ $item->id }}"
+                                                    data-jenis="{{ strtolower($item->jenis) }}"
+                                                    {{ old('tygon_size_category', request('tygon_size_category')) == $item->id ? 'selected' : '' }}>
+                                                    {{ $item->jenis }}
+                                                </option>
+                                            @endforeach
                                         </select>
                                         <div class="form-text text-info">
                                             Pilih kategori ukuran untuk menentukan satuan dimensi tube.
@@ -653,11 +648,6 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
 
-            // ==========================================================
-            // Mapping: keyword yang ada di data-type  ->  section IDs
-            // data-type dibuat dari nama category di-lowercase, spasi → _
-            // Contoh: "Tygon 3350" → "tygon_" → match key 'tygon'
-            // ==========================================================
             const sectionMap = {
                 'rulon': ['section-rulon-varian', 'section-rulon-spek', 'section-sertifikasi'],
                 'tygon': ['section-tygon-varian', 'section-tygon-spek'],
@@ -673,84 +663,96 @@
 
             const categorySelect = document.getElementById('categorySelect');
             const btnSimpan = document.getElementById('btn-simpan');
-            const productForm = document.getElementById('product-form');
             const shapeSelect = document.getElementById('shapeSelect');
             const tygonSizeCat = document.getElementById('tygonSizeCategory');
 
             // ----------------------------------------------------------
-            // Satuan label dinamis untuk Tygon berdasar kategori ukuran
+            // Deteksi satuan dari teks nama jenis (data-jenis attribute)
             // ----------------------------------------------------------
-            const unitMap = {
-                tubing_inventory: {
-                    diameter: 'inches',
-                    length: 'feet',
-                    bend: 'inches',
-                },
-                metric: {
-                    diameter: 'mm',
-                    length: 'm',
-                    bend: 'mm',
-                },
-            };
+            function getUnitsFromJenis(jenisText) {
+                const lower = jenisText.toLowerCase();
 
-            const placeholderMap = {
-                tubing_inventory: {
-                    id: 'e.g. 0.1875',
-                    od: 'e.g. 0.3750',
-                    wall: 'e.g. 0.0625',
-                    len: 'e.g. 50',
-                    bend: 'e.g. 0.125',
-                },
-                metric: {
-                    id: 'e.g. 4.762',
-                    od: 'e.g. 6.350',
-                    wall: 'e.g. 0.794',
-                    len: 'e.g. 15.24',
-                    bend: 'e.g. 25.4',
-                },
-            };
+                if (lower.includes('metric')) {
+                    return {
+                        diameter: 'mm',
+                        length: 'm',
+                        placeholders: {
+                            id: 'e.g. 4.762',
+                            od: 'e.g. 6.350',
+                            wall: 'e.g. 0.794',
+                            len: 'e.g. 15.24',
+                            bend: 'e.g. 25.4',
+                        }
+                    };
+                }
 
-            function applyTygonUnits(category) {
-                const units = unitMap[category] || null;
-                const ph = placeholderMap[category] || null;
+                if (lower.includes('inch') || lower.includes('imperial') || lower.includes('tubing')) {
+                    return {
+                        diameter: 'inches',
+                        length: 'feet',
+                        placeholders: {
+                            id: 'e.g. 0.1875',
+                            od: 'e.g. 0.3750',
+                            wall: 'e.g. 0.0625',
+                            len: 'e.g. 50',
+                            bend: 'e.g. 0.125',
+                        }
+                    };
+                }
 
-                const ids = {
-                    'label-id-unit': units ? units.diameter : '-',
-                    'label-od-unit': units ? units.diameter : '-',
-                    'label-wall-unit': units ? units.diameter : '-',
-                    'label-len-unit': units ? units.length : '-',
-                    'label-bend-unit': units ? units.bend : '-',
+                return {
+                    diameter: '-',
+                    length: '-',
+                    placeholders: null
                 };
+            }
 
-                for (const [id, text] of Object.entries(ids)) {
+            function applyTygonUnits(jenisText) {
+                const units = getUnitsFromJenis(jenisText);
+
+                // Update label satuan
+                const labelMap = {
+                    'label-id-unit': units.diameter,
+                    'label-od-unit': units.diameter,
+                    'label-wall-unit': units.diameter,
+                    'label-bend-unit': units.diameter,
+                    'label-len-unit': units.length,
+                };
+                for (const [id, text] of Object.entries(labelMap)) {
                     const el = document.getElementById(id);
                     if (el) el.textContent = text;
                 }
 
-                if (ph) {
-                    const map = {
+                // Update placeholder
+                if (units.placeholders) {
+                    const ph = units.placeholders;
+                    const phMap = {
                         'input-inner-diameter': ph.id,
                         'input-outer-diameter': ph.od,
                         'input-wall-thickness': ph.wall,
                         'input-tygon-length': ph.len,
                         'input-min-bend': ph.bend,
                     };
-                    for (const [id, placeholder] of Object.entries(map)) {
+                    for (const [id, placeholder] of Object.entries(phMap)) {
                         const el = document.getElementById(id);
                         if (el) el.placeholder = placeholder;
                     }
                 }
             }
 
-            // Event: kategori ukuran Tygon berubah
+            // Event: dropdown Tygon berubah — ambil data-jenis bukan value (ID)
             if (tygonSizeCat) {
                 tygonSizeCat.addEventListener('change', function() {
-                    applyTygonUnits(this.value);
+                    const selected = this.options[this.selectedIndex];
+                    const jenisText = selected.getAttribute('data-jenis') || '';
+                    applyTygonUnits(jenisText);
                 });
 
-                // Auto-apply saat load jika sudah ada nilai
+                // Auto-apply saat load (old/request value sudah terselect)
                 if (tygonSizeCat.value) {
-                    applyTygonUnits(tygonSizeCat.value);
+                    const selected = tygonSizeCat.options[tygonSizeCat.selectedIndex];
+                    const jenisText = selected.getAttribute('data-jenis') || '';
+                    applyTygonUnits(jenisText);
                 }
             }
 
@@ -790,26 +792,23 @@
                 }
             }
 
-            // Saat user ganti kategori
             categorySelect.addEventListener('change', function() {
                 const opt = this.options[this.selectedIndex];
                 const dataType = opt.getAttribute('data-type') || '';
                 applyCategory(dataType);
             });
 
-            // Auto-apply saat halaman load (misal setelah reload karena pilih shape)
             if (categorySelect.value) {
                 const opt = categorySelect.options[categorySelect.selectedIndex];
                 const dataType = opt.getAttribute('data-type') || '';
                 applyCategory(dataType);
             }
 
-            // Shape reload (hanya Rulon) — simpan id_cat sebelum submit GET
+            // Shape reload (hanya Rulon)
             if (shapeSelect) {
                 shapeSelect.addEventListener('change', function() {
-                    const idCat = categorySelect.value;
                     const url = new URL("{{ route('admin.produk.create') }}");
-                    url.searchParams.set('id_cat', idCat);
+                    url.searchParams.set('id_cat', categorySelect.value);
                     url.searchParams.set('shape_id', this.value);
                     url.searchParams.set('sku', document.querySelector('[name="sku"]').value);
                     url.searchParams.set('nama_produk', document.querySelector('[name="nama_produk"]')
@@ -819,6 +818,7 @@
                     window.location.href = url.toString();
                 });
             }
+
         });
     </script>
 @endpush
