@@ -22,10 +22,7 @@ class Produk extends Model
         'merk',
 
         'idsatuan',
-        'weight',
-        'length',
-        'width',
-        'height',
+
         'gros',
         'gambar',
         'status_aktif',
@@ -60,10 +57,11 @@ class Produk extends Model
 
     ];
 
-    public function variants()
+    public function category()
     {
-        return $this->hasMany(ProdukStok::class, 'id_produk');
+        return $this->belongsTo(ProdukCategory::class, 'id_cat');
     }
+
 
 
     public function kategori()
@@ -81,18 +79,7 @@ class Produk extends Model
         return $this->belongsTo(ProdukEnvi::class, 'id_environmant');
     }
 
-    public function getAllUkuransAttribute()
-    {
-        $ukurans = collect();
 
-        foreach ($this->jenis as $jenis) {
-            if ($jenis && $jenis->ukurans) {
-                $ukurans = $ukurans->merge($jenis->ukurans);
-            }
-        }
-
-        return $ukurans;
-    }
 
     public function details()
     {
@@ -102,5 +89,11 @@ class Produk extends Model
     public function requests()
     {
         return $this->hasMany(TransaksiRequest::class, 'idproduk', 'id');
+    }
+
+    // Tambahkan di bawah relasi variants()
+    public function variants()
+    {
+        return $this->hasMany(ProdukStok::class, 'id_produk');
     }
 }

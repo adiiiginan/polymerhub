@@ -464,17 +464,6 @@
                         <!-- Shipping Details -->
 
                         <div class="w-full rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-                            <!--<h3 class="text-lg font-semibold text-gray-800 mb-4">Shipping Details</h3>
-                                                                                                                                                                                                                                                                                                                    <div class="mt-4">
-                                                                                                                                                                                                                                                                                                                        <label for="destination_zip"
-                                                                                                                                                                                                                                                                                                                            class="block text-sm font-medium text-gray-700 mb-2">Destination Zip Code</label>
-                                                                                                                                                                                                                                                                                                                        <div class="flex items-center">
-                                                                                                                                                                                                                                                                                                                            <input type="text" id="destination_zip" placeholder="Enter zip code"
-                                                                                                                                                                                                                                                                                                                                class="form-input w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                                                                                                                                                                                                                                                                                                            <button id="calculate_shipping"
-                                                                                                                                                                                                                                                                                                                                class="ml-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Calculate</button>
-                                                                                                                                                                                                                                                                                                                        </div>
-                                                                                                                                                                                                                                                                                                                    </div>-->
                             <div class="mt-4">
                                 <label for="shipping" class="block text-sm font-medium text-gray-700 mb-2">Choose Shipping
                                     Service</label>
@@ -484,7 +473,7 @@
                             </div>
                             <input type="hidden" id="customer_zip" value="{{ $defaultAddress->zip_code ?? '' }}">
                             <input type="hidden" id="customer_country" value="{{ $defaultAddress->kode_iso ?? '' }}">
-                            <input type="hidden" id="total_weight"value="{{ number_format($final_gross_weight, 2) }} ">
+                            <input type="hidden" id="total_weight" value="{{ number_format($final_gross_weight, 2) }}">
                         </div>
 
                         <!-- Order Summary -->
@@ -514,9 +503,7 @@
                                     Proceed to Checkout
                                 </button>
                             </form>
-                            <a href="{{ route('en.frontend.produk') }}" class="continue-shopping">
-                                ← Continue Shopping
-                            </a>
+
                         </div>
                     @endif
                 </div>
@@ -555,139 +542,222 @@
 
 @push('scripts')
     <script>
+        /**
+         * Cart Shipping Module - FIXED
+         * Handles shipping address selection, rate calculation, and selection
+         * FIX: Now properly sends both address_id and weight to backend
+         */
+
         document.addEventListener('DOMContentLoaded', function() {
-            // Element references
+            // ============================================================
+            // ELEMENT REFERENCES
+            // ============================================================
             const addressSelect = document.getElementById('shipping_address');
             const shippingOptionsContainer = document.getElementById('shipping-options-container');
             const totalWeightInput = document.getElementById('total_weight');
             const shippingCostValue = document.getElementById('shipping-cost-value');
             const shippingCostRow = document.getElementById('shipping-cost-row');
             const totalElement = document.getElementById('total-amount');
+            const checkoutForm = document.getElementById('checkout-form');
             const subtotal = {{ $subtotal ?? 0 }};
 
+            // ============================================================
+            // UTILITY FUNCTIONS
+            // ============================================================
+
+            /**
+             * Format a number as USD currency
+             */
             function formatCurrency(value) {
-                // This function can be localized based on the currency
-                return '$' + parseFloat(value).toLocaleString('en-US', {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
-                });
+                }).format(value);
             }
 
-            // Function to fetch shipping rates
+            /**
+             * Get CSRF token from meta tag
+             */
+            function getCsrfToken() {
+                return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            }
+
+            /**
+             * Show loading state in shipping options container
+             */
+            function showLoading() {
+                shippingOptionsContainer.innerHTML =
+                    '<p class="text-sm text-gray-500">Loading shipping services...</p>';
+            }
+
+            /**
+             * Show error state
+             */
+            function showError(message) {
+                shippingOptionsContainer.innerHTML =
+                    `<p class="text-sm text-red-500">${message}</p>`;
+            }
+
+            /**
+             * Show info state (no services)
+             */
+            function showInfo(message) {
+                shippingOptionsContainer.innerHTML =
+                    `<p class="text-sm text-gray-500">${message}</p>`;
+            }
+
+            // ============================================================
+            // MAIN SHIPPING RATE FETCH FUNCTION (FIXED!)
+            // ============================================================
+
+            /**
+             * Fetch shipping rates from backend
+             * FIX: Now sends both address_id AND weight
+             * @param {string} addressId - The selected address ID
+             */
             function fetchRates(addressId) {
-                const selectedOption = addressSelect.options[addressSelect.selectedIndex];
-
-                const city = selectedOption.dataset.city;
-                const state = selectedOption.dataset.state;
-                const country = selectedOption.dataset.country;
-                const zip = selectedOption.dataset.zip;
-                const totalWeight = totalWeightInput.value;
-
-                if (!addressId || totalWeight <= 0) {
-                    shippingOptionsContainer.innerHTML =
-                        '<p class="text-sm text-gray-500">Select an address to see rates</p>';
+                // Validate inputs
+                if (!addressId) {
+                    showInfo('Please select a shipping address to view options.');
                     return;
                 }
 
-                shippingOptionsContainer.innerHTML = '<p class="text-sm text-gray-500">Loading services...</p>';
+                const totalWeight = totalWeightInput.value.trim();
 
+                if (!totalWeight || parseFloat(totalWeight) <= 0) {
+                    showError('Unable to calculate shipping. Please ensure items are in your cart.');
+                    return;
+                }
+
+                console.log('✅ Fetching rates for:', {
+                    addressId: addressId,
+                    totalWeight: totalWeight
+                });
+
+                showLoading();
+
+                // Call backend API
                 fetch('{{ route('en.frontend.cart.getShippingRate') }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute(
-                                'content')
+                            'X-CSRF-TOKEN': getCsrfToken(),
+                            'Accept': 'application/json'
                         },
                         body: JSON.stringify({
-                            address_id: addressId
+                            address_id: addressId,
+                            weight: parseFloat(totalWeight) // ✅ THIS WAS MISSING - NOW FIXED!
                         })
                     })
                     .then(response => {
+                        // Handle different HTTP status codes
+                        if (response.status === 503) {
+                            throw new Error('ServiceUnavailable');
+                        }
+                        if (response.status === 404) {
+                            throw new Error('AddressNotFound');
+                        }
                         if (!response.ok) {
-                            return response.text().then(text => {
-                                throw new Error(
-                                    `Request failed: ${response.status} ${response.statusText} - ${text}`
-                                );
+                            return response.json().then(data => {
+                                throw new Error(data.error || data.message || 'Request failed');
                             });
                         }
                         return response.json();
                     })
                     .then(data => {
-                        shippingOptionsContainer.innerHTML = ''; // Clear previous options
+                        console.log('✅ Rates fetched successfully:', data);
 
-                        if (data && data.rates && data.rates.length > 0) {
-                            data.rates.forEach(function(rate) {
-                                const optionHtml = `
-                                <div class="shipping-option flex items-center justify-between p-3 border rounded-md cursor-pointer hover:bg-gray-50" data-rate="${rate.total_charge}" data-currency="${rate.currency}" data-service-type="${rate.service_type}">
-                                    <div>
-                                        <input type="radio" name="shipping_option" value="${rate.service_name}" class="me-2">
-                                        <strong>${rate.service_name}</strong>
-                                        <small class="d-block text-muted">Est. Delivery: ${rate.delivery_timestamp}</small>
-                                    </div>
-                                    <div class="fw-bold">${formatCurrency(rate.total_charge)}</div>
-                                </div>`;
-                                shippingOptionsContainer.insertAdjacentHTML('beforeend', optionHtml);
-                            });
-                        } else {
-                            console.log('No rates found in response.');
-                            shippingOptionsContainer.innerHTML =
-                                '<p class="text-sm text-gray-500">No shipping services available for this address</p>';
+                        // Validate response structure
+                        if (!data.success) {
+                            showError(data.error || 'Failed to fetch shipping rates');
+                            return;
                         }
+
+                        if (!data.rates || data.rates.length === 0) {
+                            showInfo('No shipping services available for this address.');
+                            return;
+                        }
+
+                        // Clear previous options
+                        shippingOptionsContainer.innerHTML = '';
+
+                        // Render shipping options
+                        data.rates.forEach(function(rate, index) {
+                            const optionId = `shipping-option-${index}`;
+                            const serviceType = rate.service_type || rate.service_name ||
+                                'Unknown Service';
+                            const serviceName = rate.service_name || serviceType;
+                            const deliveryTime = rate.delivery_timestamp || 'TBD';
+                            const totalCharge = parseFloat(rate.total_charge || 0);
+
+                            const optionHtml = `
+                        <div class="shipping-option flex items-start justify-between p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors" 
+                             data-rate="${totalCharge}" 
+                             data-currency="${rate.currency || 'USD'}" 
+                             data-service-type="${serviceType}">
+                            <div class="flex items-start gap-3 flex-1">
+                                <input type="radio" 
+                                       id="${optionId}" 
+                                       name="shipping_option" 
+                                       value="${serviceName}" 
+                                       class="mt-1"
+                                       data-service-type="${serviceType}"
+                                       data-rate="${totalCharge}">
+                                <div>
+                                    <label for="${optionId}" class="block font-medium text-gray-900 cursor-pointer">
+                                        ${serviceName}
+                                    </label>
+                                    <small class="block text-gray-600 mt-1">Est. Delivery: ${deliveryTime}</small>
+                                </div>
+                            </div>
+                            <div class="font-bold text-gray-900 ml-4">
+                                ${formatCurrency(totalCharge)}
+                            </div>
+                        </div>`;
+
+                            shippingOptionsContainer.insertAdjacentHTML('beforeend', optionHtml);
+                        });
+
+                        console.log(`✅ ${data.rates.length} shipping options rendered`);
                     })
-                    .catch(err => {
-                        console.error('An error occurred while fetching shipping rates:', err);
-                        shippingOptionsContainer.innerHTML =
-                            '<p class="text-sm text-red-500">Error loading shipping services</p>';
+                    .catch(error => {
+                        console.error('❌ Error fetching shipping rates:', error);
+
+                        if (error.message === 'ServiceUnavailable') {
+                            showError(
+                                'Shipping services are temporarily unavailable. Please try again later or contact support.'
+                            );
+                        } else if (error.message === 'AddressNotFound') {
+                            showError('The selected address could not be found. Please refresh and try again.');
+                        } else {
+                            showError(
+                                'Error loading shipping services. Please ensure your address is complete (zip code, country).'
+                            );
+                        }
+
+                        console.error('Full error:', error);
                     });
             }
 
-            // Delegated event listener for shipping option selection
-            shippingOptionsContainer.addEventListener('change', function(e) {
-                if (e.target.name === 'shipping_option' && e.target.checked) {
-                    const shippingOption = e.target.closest('.shipping-option');
-                    const rate = parseFloat(shippingOption.dataset.rate);
-                    const serviceType = shippingOption.dataset.serviceType;
-                    const addressId = addressSelect.value;
+            // ============================================================
+            // UPDATE SHIPPING SELECTION
+            // ============================================================
 
-                    // Update UI
-                    shippingCostRow.style.display = 'flex';
-                    shippingCostValue.textContent = formatCurrency(rate);
-                    const newTotal = subtotal + rate;
-                    totalElement.textContent = formatCurrency(newTotal);
-
-                    // Save the selected address and shipping option to the session
-                    updateShippingSelection(addressId, serviceType, rate);
-                }
-            });
-
-            // Event listener for address change
-            if (addressSelect) {
-                addressSelect.addEventListener('change', function() {
-                    const selectedAddressId = this.value;
-                    // Reset and fetch new rates
-                    shippingOptionsContainer.innerHTML =
-                        '<p class="text-sm text-gray-500">Loading services...</p>';
-                    shippingCostRow.style.display = 'none';
-                    totalElement.textContent = formatCurrency(subtotal);
-                    fetchRates(selectedAddressId);
-                    // Save the selected address, shipping will be null initially
-                    updateShippingSelection(selectedAddressId, null, null);
-                });
-
-                // Initial fetch if an address is already selected
-                if (addressSelect.value) {
-                    fetchRates(addressSelect.value);
-                    // Also save the initially selected address
-                    updateShippingSelection(addressSelect.value, null, null);
-                }
-            }
-
+            /**
+             * Update shipping selection in backend
+             * @param {string} addressId 
+             * @param {string|null} service 
+             * @param {number|null} cost 
+             */
             function updateShippingSelection(addressId, service, cost) {
                 fetch('{{ route('en.frontend.cart.updateShippingSelection') }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            'X-CSRF-TOKEN': getCsrfToken(),
+                            'Accept': 'application/json'
                         },
                         body: JSON.stringify({
                             address_id: addressId,
@@ -698,33 +768,173 @@
                     .then(response => response.json())
                     .then(data => {
                         if (!data.success) {
-                            console.error('Failed to update shipping selection.');
+                            console.error('❌ Failed to update shipping selection:', data);
+                        } else {
+                            console.log('✅ Shipping selection updated successfully');
                         }
                     })
                     .catch(error => {
-                        console.error('Error updating shipping selection:', error);
+                        console.error('❌ Error updating shipping selection:', error);
                     });
             }
 
-            // Quantity update logic
-            const quantityButtons = document.querySelectorAll('.quantity-btn');
-            quantityButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const action = this.dataset.action;
-                    const itemId = this.dataset.id;
-                    updateQuantity(itemId, action);
-                });
+            // ============================================================
+            // EVENT LISTENERS
+            // ============================================================
+
+            /**
+             * Shipping option selection handler
+             */
+            shippingOptionsContainer.addEventListener('change', function(e) {
+                if (e.target.name === 'shipping_option' && e.target.checked) {
+                    const shippingOption = e.target.closest('.shipping-option');
+                    const rate = parseFloat(e.target.dataset.rate);
+                    const serviceType = e.target.dataset.serviceType;
+                    const addressId = addressSelect.value;
+                    const serviceName = e.target.value;
+
+                    console.log('✅ Shipping option selected:', {
+                        service: serviceName,
+                        rate: rate,
+                        serviceType: serviceType
+                    });
+
+                    // Update UI with shipping cost
+                    shippingCostRow.style.display = 'flex';
+                    shippingCostValue.textContent = formatCurrency(rate);
+
+                    // Update total
+                    const newTotal = subtotal + rate;
+                    totalElement.textContent = formatCurrency(newTotal);
+
+                    // Update backend
+                    updateShippingSelection(addressId, serviceType, rate);
+
+                    // Add visual feedback
+                    document.querySelectorAll('.shipping-option').forEach(option => {
+                        option.classList.remove('bg-blue-50');
+                    });
+                    shippingOption.classList.add('bg-blue-50');
+                }
             });
 
+            /**
+             * Address selection handler
+             */
+            if (addressSelect) {
+                addressSelect.addEventListener('change', function() {
+                    const selectedAddressId = this.value;
+
+                    console.log('✅ Address changed to:', selectedAddressId);
+
+                    // Reset shipping options
+                    showLoading();
+                    shippingCostRow.style.display = 'none';
+                    totalElement.textContent = formatCurrency(subtotal);
+
+                    // Fetch new rates for selected address
+                    fetchRates(selectedAddressId);
+
+                    // Update backend with new address (shipping cleared)
+                    updateShippingSelection(selectedAddressId, null, null);
+                });
+
+                // Initial fetch if address is pre-selected
+                if (addressSelect.value) {
+                    console.log('✅ Initial address:', addressSelect.value);
+                    fetchRates(addressSelect.value);
+                    updateShippingSelection(addressSelect.value, null, null);
+                } else {
+                    showInfo('Please select a shipping address to view options.');
+                }
+            }
+
+            // ============================================================
+            // CHECKOUT HANDLER
+            // ============================================================
+
+            if (checkoutForm) {
+                checkoutForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    // Validate shipping selection
+                    const selectedShipping = document.querySelector(
+                        'input[name="shipping_option"]:checked');
+                    if (!selectedShipping) {
+                        alert('Please select a shipping option before proceeding to checkout.');
+                        return;
+                    }
+
+                    const checkoutButton = this.querySelector('button[type="submit"]');
+                    checkoutButton.disabled = true;
+                    checkoutButton.textContent = 'Processing...';
+
+                    console.log('✅ Submitting checkout');
+
+                    fetch(this.action, {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': getCsrfToken(),
+                                'Accept': 'application/json',
+                            },
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success && data.redirect_url) {
+                                console.log('✅ Checkout successful, redirecting to:', data
+                                    .redirect_url);
+                                window.location.href = data.redirect_url;
+                            } else {
+                                alert(data.error || 'An unexpected error occurred.');
+                                checkoutButton.disabled = false;
+                                checkoutButton.textContent = 'Proceed to Checkout';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('❌ Checkout error:', error);
+                            alert('An error occurred during checkout. Please try again.');
+                            checkoutButton.disabled = false;
+                            checkoutButton.textContent = 'Proceed to Checkout';
+                        });
+                });
+            }
+
+            // ============================================================
+            // QUANTITY UPDATE HANDLER (Delegated)
+            // ============================================================
+
+            document.addEventListener('click', function(e) {
+                const quantityBtn = e.target.closest('.quantity-btn');
+                if (!quantityBtn) return;
+
+                e.preventDefault();
+
+                const itemId = quantityBtn.dataset.id;
+                const action = quantityBtn.dataset.action;
+
+                if (!itemId || !action) {
+                    console.error('Missing data-id or data-action on button');
+                    return;
+                }
+
+                updateQuantity(itemId, action);
+            });
+
+            /**
+             * Update cart item quantity
+             */
             function updateQuantity(itemId, action) {
                 const url = `/en/frontend/cart/update-quantity/${itemId}`;
+
+                const quantityBtn = document.querySelector(`.quantity-btn[data-id="${itemId}"]`);
+                quantityBtn.disabled = true;
 
                 fetch(url, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute(
-                                'content')
+                            'X-CSRF-TOKEN': getCsrfToken(),
+                            'Accept': 'application/json'
                         },
                         body: JSON.stringify({
                             action: action
@@ -738,191 +948,42 @@
                     })
                     .then(data => {
                         if (data.success) {
+                            // Reload page to reflect all changes
                             location.reload();
                         } else {
-                            alert(
-                                'An error occurred while updating the quantity. Please check the console for more details.'
-                            );
-                            console.error('Error:', data.message);
+                            alert('Error: ' + data.message);
+                            quantityBtn.disabled = false;
                         }
                     })
                     .catch(error => {
-                        alert(
-                            'An error occurred while updating the quantity. Please check the console for more details.'
-                        );
-                        console.error('Error:', error);
+                        console.error('Quantity update error:', error);
+                        alert('An error occurred while updating quantity. Please try again.');
+                        quantityBtn.disabled = false;
                     });
             }
 
-            // Handle checkout form submission
-            const checkoutForm = document.getElementById('checkout-form');
-            if (checkoutForm) {
-                checkoutForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
+            // ============================================================
+            // CART ITEM REMOVAL
+            // ============================================================
 
-                    // Validasi shipping sudah dipilih
-                    const selectedShipping = document.querySelector(
-                        'input[name="shipping_option"]:checked');
-                    if (!selectedShipping) {
-                        alert('Please select a shipping option before proceeding to checkout.');
-                        return;
+            document.querySelectorAll('.remove-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    if (!confirm('Are you sure you want to remove this item?')) {
+                        e.preventDefault();
                     }
-
-                    const checkoutButton = this.querySelector('button[type="submit"]');
-                    checkoutButton.disabled = true;
-                    checkoutButton.textContent = 'Processing...';
-
-                    fetch(this.action, {
-                            method: 'POST',
-                            headers: {
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                                'Accept': 'application/json',
-                            },
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success && data.redirect_url) {
-                                window.location.href = data.redirect_url;
-                            } else {
-                                // Handle errors (e.g., display a message)
-                                alert(data.error || 'An unexpected error occurred.');
-                                checkoutButton.disabled = false;
-                                checkoutButton.textContent = 'Proceed to Checkout';
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Checkout error:', error);
-                            alert('An error occurred during checkout. Please try again.');
-                            checkoutButton.disabled = false;
-                            checkoutButton.textContent = 'Proceed to Checkout';
-                        });
                 });
-            }
-        });
-    </script>
-@endpush
-
-@push('scripts')
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const cartItemsContainer = document.querySelector('.cart-items');
-            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
-            if (!cartItemsContainer) {
-                console.error('Cart items container not found!');
-                return;
-            }
-
-            cartItemsContainer.addEventListener('click', function(event) {
-                const target = event.target;
-                const quantityBtn = target.closest('.quantity-btn');
-
-                if (quantityBtn) {
-                    event.preventDefault();
-                    const itemId = quantityBtn.dataset.id;
-                    const action = quantityBtn.dataset.action;
-
-                    if (!itemId || !action) {
-                        console.error('Missing data-id or data-action on the button.');
-                        return;
-                    }
-
-                    // Disable buttons to prevent multiple clicks
-                    const allButtons = cartItemsContainer.querySelectorAll(
-                        `.quantity-btn[data-id="${itemId}"]`);
-                    allButtons.forEach(btn => btn.disabled = true);
-
-                    updateQuantity(itemId, action, allButtons);
-                }
             });
 
-            async function updateQuantity(itemId, action, buttons) {
-                // The route seems to be /cart/update/{itemId} and expects a qty
-                // We need to get the current quantity first to increment/decrement it.
-                const itemRow = document.querySelector(`.cart-item[data-item-id="${itemId}"]`);
-                if (!itemRow) return;
+            // ============================================================
+            // DEBUG: Log initial state
+            // ============================================================
 
-                const quantityEl = itemRow.querySelector('.quantity-value');
-                let currentQty = parseInt(quantityEl.textContent, 10);
-
-                let newQty;
-                if (action === 'increase') {
-                    newQty = currentQty + 1;
-                } else if (action === 'decrease') {
-                    newQty = Math.max(1, currentQty - 1);
-                } else {
-                    return; // Should not happen
-                }
-
-                const url = `/cart/update-quantity/{item_id}`;
-
-                try {
-                    const response = await fetch(url, {
-                        method: 'POST', // Should be POST or PUT/PATCH as per convention
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken,
-                            'Accept': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            qty: newQty,
-                            _method: 'PATCH' // Method spoofing for Laravel if route is PATCH
-                        })
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        // Update UI dynamically
-                        quantityEl.textContent = data.new_quantity;
-
-                        const itemSubtotalEl = itemRow.querySelector('.item-total-price');
-                        if (itemSubtotalEl) {
-                            itemSubtotalEl.textContent = formatCurrency(data.item_subtotal);
-                        }
-
-                        const itemTotalWeightEl = itemRow.querySelector('.item-total-weight');
-                        if (itemTotalWeightEl) {
-                            itemTotalWeightEl.textContent = data.item_total_weight.toFixed(2) + ' kg';
-                        }
-
-                        // Update cart totals
-                        const cartTotalEl = document.getElementById('total-amount');
-                        if (cartTotalEl) {
-                            cartTotalEl.textContent = formatCurrency(data.cart_total);
-                        }
-
-                        const cartTotalGrossWeightEl = document.getElementById('cart-total-gross-weight');
-                        if (cartTotalGrossWeightEl) {
-                            cartTotalGrossWeightEl.textContent = data.cart_total_gross_weight.toFixed(2) +
-                                ' kg';
-                        }
-                    } else {
-                        // Display server-side error message
-                        console.error('Error updating quantity:', data.message);
-                        alert('Error: ' + data.message);
-                    }
-
-                } catch (error) {
-                    console.error('A network error occurred:', error);
-                    alert(
-                        'An error occurred while updating the quantity. Please check the console for more details.'
-                    );
-                } finally {
-                    // Re-enable buttons
-                    buttons.forEach(btn => btn.disabled = false);
-                }
-            }
-
-            function formatCurrency(amount) {
-                // This will format the number according to US Dollar standards
-                return new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                }).format(amount);
-            }
+            console.log('🎯 Cart Shipping Module initialized', {
+                subtotal: subtotal,
+                totalWeight: totalWeightInput.value,
+                selectedAddress: addressSelect?.value || 'none',
+                status: '✅ FIXED - Now sending address_id + weight'
+            });
         });
     </script>
 @endpush

@@ -9,7 +9,6 @@ use App\Models\ShippingRate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-// Impor FedExController
 
 class FedExController extends Controller
 {
@@ -19,8 +18,6 @@ class FedExController extends Controller
     public $client_secret;
     public $account_number;
     public $shipper;
-
-
 
     public function __construct()
     {
@@ -41,7 +38,7 @@ class FedExController extends Controller
             $token = FedexToken::first();
 
             // Check if token exists and is not expired (with a 5-minute buffer)
-            if (!$token || now()->gte($token->updated_at->addSeconds((int)$token->expires_in - 300))) {
+            if (!$token || now()->gte($token->updated_at->addSeconds((int) $token->expires_in - 300))) {
                 $response = Http::asForm()->post($this->api_url . '/oauth/token', [
                     'grant_type' => 'client_credentials',
                     'client_id' => $this->client_id,
@@ -57,8 +54,6 @@ class FedExController extends Controller
                         'expires_in' => $data['expires_in'],
                     ];
 
-                    // Use updateOrCreate to manage the single token record.
-                    // This will update the first record or create it if it doesn't exist.
                     FedexToken::updateOrCreate(['id' => 1], $tokenData);
 
                     return $data['access_token'];
@@ -71,8 +66,95 @@ class FedExController extends Controller
             return $token->access_token;
         } catch (\Exception $e) {
             Log::error('Error in getAccessToken: ' . $e->getMessage());
-            throw $e; // Re-throw the exception to be caught by the calling method
+            throw $e;
         }
+    }
+
+    // ============================================================
+    // HELPER: Bangun objek dutiesPayment / responsibleParty yang lengkap
+    // (dipakai bersama di getRates & createShipment agar konsisten)
+    // ============================================================
+    private function buildResponsiblePartyPayor(): array
+    {
+        return [
+            'responsibleParty' => [
+                'address' => [
+                    'streetLines' => $this->splitStreetLines($this->shipper['address']),
+                    'city'        => $this->shipper['city'],
+                    'postalCode'  => $this->shipper['postal_code'],
+                    'countryCode' => $this->shipper['country_code'],
+                    'residential' => false,
+                ],
+                'accountNumber' => [
+                    'value' => $this->account_number,
+                ],
+            ],
+        ];
+    }
+
+    // ============================================================
+    // HELPER: Bangun array commodities dari list item generik
+    // Dipakai khusus oleh getRates() karena request-nya cuma per-shipment,
+    // bukan per-produk seperti di createShipment()
+    // ============================================================
+    private function buildCommoditiesFromItems(array $items, float $totalWeight, float $usdTotalValue): array
+    {
+        $commodities = [];
+
+        if (!empty($items)) {
+            foreach ($items as $item) {
+                $qty = (int) ($item['qty'] ?? 1);
+                $weightPerUnit = (float) ($item['gros'] ?? 0);
+                $unitPrice = (float) ($item['price'] ?? ($usdTotalValue / max(count($items), 1)));
+
+                $commodities[] = [
+                    'description'          => trim($item['description'] ?? $item['name'] ?? 'General Merchandise'),
+                    'name'                  => trim($item['name'] ?? 'General Merchandise'),
+                    'countryOfManufacture'  => $item['countryOfManufacture'] ?? 'ID',
+                    'quantity'              => $qty,
+                    'quantityUnits'         => 'PCS',
+                    'numberOfPieces'        => $qty,
+                    'unitPrice' => [
+                        'amount'   => round($unitPrice, 2),
+                        'currency' => 'USD',
+                    ],
+                    'customsValue' => [
+                        'amount'   => round($unitPrice * $qty, 2),
+                        'currency' => 'USD',
+                    ],
+                    'weight' => [
+                        'units' => 'KG',
+                        'value' => $weightPerUnit * $qty,
+                    ],
+                ];
+            }
+        }
+
+        // Fallback: kalau items kosong / tidak lengkap, buat satu commodity umum
+        if (empty($commodities)) {
+            $commodities[] = [
+                'description'          => 'General Merchandise',
+                'name'                  => 'General Merchandise',
+                'countryOfManufacture'  => 'ID',
+                'quantity'              => 1,
+                'quantityUnits'         => 'PCS',
+                'numberOfPieces'        => 1,
+                'unitPrice' => [
+                    'amount'   => round($usdTotalValue, 2),
+                    'currency' => 'USD',
+                ],
+                'customsValue' => [
+                    'amount'   => round($usdTotalValue, 2),
+                    'currency' => 'USD',
+                ],
+                'weight' => [
+                    'units' => 'KG',
+                    'value' => $totalWeight,
+                ],
+            ];
+        }
+
+        return $commodities;
     }
 
     // ============================================================
@@ -80,11 +162,17 @@ class FedExController extends Controller
     // ============================================================
     public function getRates(Request $request)
     {
+        Log::info('FedEx Config Check', [
+            'account_number' => $this->account_number,
+            'shipper' => $this->shipper,
+            'api_url' => $this->api_url,
+            'mode' => $this->mode,
+        ]);
+
         try {
             Log::info('FedEx getRates method called.');
             Log::info('Request data:', $request->all());
 
-            // Validasi input
             $validated = $request->validate([
                 'destinationZip' => 'required|string|max:10',
                 'totalWeight' => 'required|numeric',
@@ -93,24 +181,33 @@ class FedExController extends Controller
                 'state' => 'nullable|string|max:100',
                 'destinationStreet' => 'required|string|max:255',
                 'totalValue' => 'required|numeric',
-                'items' => 'required|array'
+                'items' => 'required|array',
             ]);
 
-            $usdTotalValue = $validated['totalValue'];
+            $usdTotalValue = (float) $validated['totalValue'];
 
             $packageLineItems = [];
             foreach ($validated['items'] as $item) {
                 $packageLineItems[] = [
-                    "weight" => [
-                        "units" => "KG",
-                        "value" => $item['gros'] * $item['qty']
+                    'weight' => [
+                        'units' => 'KG',
+                        'value' => (float) ($item['gros'] ?? 0) * (int) ($item['qty'] ?? 1),
                     ],
-                    "dimensions" => [
-                        "length" => round($item['length']),
-                        "width" => round($item['width']),
-                        "height" => round($item['height']),
-                        "units" => "CM"
-                    ]
+                    'dimensions' => [
+                        'length' => (int) round($item['length'] ?? 1),
+                        'width'  => (int) round($item['width']  ?? 1),
+                        'height' => (int) round($item['height'] ?? 1),
+                        'units'  => 'CM',
+                    ],
+                ];
+            }
+
+            if (empty($packageLineItems)) {
+                $packageLineItems[] = [
+                    'weight' => [
+                        'units' => 'KG',
+                        'value' => $validated['totalWeight'],
+                    ],
                 ];
             }
 
@@ -122,60 +219,72 @@ class FedExController extends Controller
             $url = $this->api_url . '/rate/v1/rates/quotes';
 
             $recipientAddress = [
-                "streetLines" => $this->splitStreetLines($validated['destinationStreet']),
-                "postalCode" => $validated['destinationZip'],
-                "countryCode" => $validated['destinationCountry'],
-                "city" => $validated['destinationCity']
+                'streetLines' => $this->splitStreetLines($validated['destinationStreet']),
+                'city'        => $validated['destinationCity'],
+                'postalCode'  => $validated['destinationZip'],
+                'countryCode' => $validated['destinationCountry'],
             ];
-            // if (!empty($validated['state'])) {
-            //     $recipientAddress['stateOrProvinceCode'] = $validated['state'];
-            // }
+            if (!empty($validated['state'])) {
+                $recipientAddress['stateOrProvinceCode'] = $validated['state'];
+            }
+
+            // --- Deteksi apakah shipment ini domestik atau internasional ---
+            $isInternational = strtoupper($validated['destinationCountry']) !== strtoupper($this->shipper['country_code']);
+
+            $requestedShipment = [
+                'shipDateStamp' => now()->format('Y-m-d'),
+                'shipper' => [
+                    // NOTE: accountNumber TIDAK termasuk field valid di dalam objek
+                    // requestedShipment.shipper pada schema FedEx Rate API.
+                    // Account number cukup dikirim di root payload & di
+                    // shippingChargesPayment/dutiesPayment. Field ini dihapus
+                    // untuk menghindari kemungkinan ditolak oleh strict validation.
+                    'address' => [
+                        'streetLines' => $this->splitStreetLines($this->shipper['address']),
+                        'city'        => $this->shipper['city'],
+                        'postalCode'  => $this->shipper['postal_code'],
+                        'countryCode' => $this->shipper['country_code'],
+                    ],
+                ],
+                'recipient' => [
+                    'address' => $recipientAddress,
+                ],
+                'pickupType'      => 'DROPOFF_AT_FEDEX_LOCATION',
+                'rateRequestType' => ['ACCOUNT', 'LIST'],
+                'packagingType'   => 'YOUR_PACKAGING',
+                'requestedPackageLineItems' => $packageLineItems,
+                'shippingChargesPayment' => [
+                    'paymentType' => 'SENDER',
+                    'payor' => $this->buildResponsiblePartyPayor(),
+                ],
+            ];
+
+            // customsClearanceDetail HANYA disertakan untuk shipment internasional
+            if ($isInternational) {
+                $requestedShipment['customsClearanceDetail'] = [
+                    'commercialInvoice' => [
+                        'shipmentPurpose' => 'SOLD',
+                    ],
+                    'dutiesPayment' => [
+                        'paymentType' => 'SENDER',
+                        'payor' => $this->buildResponsiblePartyPayor(),
+                    ],
+                    'commodities' => $this->buildCommoditiesFromItems(
+                        $validated['items'],
+                        (float) $validated['totalWeight'],
+                        $usdTotalValue
+                    ),
+                ];
+            }
 
             $payload = [
-                "accountNumber" => ["value" => $this->account_number],
-                "rateRequestControlParameters" => [
-                    "returnTransitTimes" => true
+                'accountNumber' => ['value' => $this->account_number],
+                'rateRequestControlParameters' => [
+                    'returnTransitTimes' => true,
+                    'servicesNeededOnRateFailure' => true,
                 ],
-                "requestedShipment" => [
-                    "shipDateStamp" => now()->addDay()->format('Y-m-d'),
-                    "shipper" => [
-                        "address" => [
-                            "streetLines" => $this->splitStreetLines($this->shipper['address']),
-                            "city" => $this->shipper['city'],
-                            // "stateOrProvinceCode" => $this->shipper['state'],
-                            "postalCode" => $this->shipper['postal_code'],
-                            "countryCode" => $this->shipper['country_code']
-                        ]
-                    ],
-
-                    "recipient" => ["address" => $recipientAddress],
-                    "pickupType" => "DROPOFF_AT_FEDEX_LOCATION",
-                    "rateRequestType" => ["ACCOUNT", "LIST"],
-                    "requestedPackageLineItems" => $packageLineItems,
-                    "packagingType" => "YOUR_PACKAGING",
-                    "customsClearanceDetail" => [
-                        "dutiesPayment" => [
-                            "paymentType" => "SENDER"
-                        ],
-                        "commodities" => [
-                            [
-                                "description" => "General Merchandise",
-                                "weight" => [
-                                    "units" => "KG",
-                                    "value" => $validated['totalWeight']
-                                ],
-                                "quantity" => 1,
-                                "customsValue" => [
-                                    "amount" => $usdTotalValue,
-                                    "currency" => "USD"
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                'requestedShipment' => $requestedShipment,
             ];
-
-            Log::info('FedEx getRates payload:', ['payload' => $payload]);
 
             Log::info('FedEx getRates payload:', ['payload' => $payload]);
 
@@ -185,10 +294,9 @@ class FedExController extends Controller
 
             Log::info('FedEx response:', ['response' => $response->json()]);
 
-            // Log ke fedex_log
             FedexLog::create([
                 'endpoint' => $url,
-                'request_json' => \json_encode($payload),
+                'request_json' => json_encode($payload),
                 'response_json' => $response->body(),
                 'status_code' => $response->status(),
             ]);
@@ -196,8 +304,17 @@ class FedExController extends Controller
             if ($response->failed()) {
                 return response()->json([
                     'error' => 'Failed to get rates from FedEx.',
-                    'details' => $response->json()
+                    'details' => $response->json(),
                 ], $response->status());
+            }
+
+            $responseBody = $response->json();
+            if (isset($responseBody['errors'])) {
+                Log::warning('FedEx API returned errors.', ['errors' => $responseBody['errors']]);
+                return response()->json([
+                    'error' => 'FedEx service is currently unavailable.',
+                    'details' => $responseBody['errors'][0]['message'] ?? 'No additional details provided.',
+                ], 503);
             }
 
             $rates = [];
@@ -206,10 +323,7 @@ class FedExController extends Controller
             if (is_array($rateDetails)) {
                 foreach ($rateDetails as $rate) {
                     if (isset($rate['ratedShipmentDetails'][0]['totalNetCharge'])) {
-
-                        // === TAMBAHKAN DI SINI ===
                         $commit = $rate['commit'] ?? null;
-
 
                         Log::info('FedEx Rate Service', [
                             'serviceType' => $rate['serviceType'] ?? null,
@@ -217,7 +331,6 @@ class FedExController extends Controller
                             'hasCommit'   => !is_null($commit),
                             'commit'      => $commit,
                         ]);
-
 
                         $delivery = 'N/A';
                         if ($commit) {
@@ -227,7 +340,6 @@ class FedExController extends Controller
                                 $delivery = 'Estimated by ' . $commit['dateDetail']['dayOfWeek'];
                             }
                         }
-                        // =========================
 
                         $rates[] = [
                             'service_name' => $rate['serviceName'],
@@ -237,7 +349,6 @@ class FedExController extends Controller
                             'currency' => $rate['ratedShipmentDetails'][0]['currency'],
                         ];
 
-                        // Simpan ke shipping_rate
                         ShippingRate::create([
                             'idexpedisi' => 1, // FedEx
                             'carrier' => 'FedEx',
@@ -257,16 +368,16 @@ class FedExController extends Controller
             if (empty($rates)) {
                 Log::warning('No FedEx rates found for the given details.');
                 return response()->json([
-                    'success' => false,
-                    'error' => 'No shipping services available for the selected destination.'
-                ], 404);
+                    'success' => true,
+                    'rates' => [],
+                ]);
             }
 
-            Log::info('FedEx rates found:', ['rates' => $rates]); // Tambahkan log di sini
+            Log::info('FedEx rates found:', ['rates' => $rates]);
 
             return response()->json([
                 'success' => true,
-                'rates' => $rates
+                'rates' => $rates,
             ]);
         } catch (\Exception $e) {
             Log::error('Error in getRates: ' . $e->getMessage());
@@ -282,7 +393,7 @@ class FedExController extends Controller
         $invoice = \App\Models\TransaksiInvoice::with([
             'transaksi.user.userDetail.negara',
             'transaksi.address',
-            'transaksi.details.produk'
+            'transaksi.details.produk',
         ])->where('idtrans', $id)->firstOrFail();
 
         $address = $invoice->transaksi->address;
@@ -294,24 +405,31 @@ class FedExController extends Controller
             return $detail->gros * $detail->qty;
         }) + 0.5;
 
+        $isInternational = strtoupper($address->kode_iso) !== strtoupper($this->shipper['country_code']);
+
         $commodities = [];
         foreach ($invoice->transaksi->details as $detail) {
+            $qty = (int) $detail->qty;
+            $unitPrice = (float) $detail->harga;
+
             $commodities[] = [
-                'description' => trim($detail->produk->nama) ?: 'Goods as per commercial invoice',
-                'countryOfManufacture' => 'ID',
-                'quantity' => $detail->qty,
-                'quantityUnits' => 'EA',
+                'description'          => trim($detail->produk->nama) ?: 'Goods as per commercial invoice',
+                'name'                  => trim($detail->produk->nama) ?: 'Goods as per commercial invoice',
+                'countryOfManufacture'  => 'ID',
+                'quantity'              => $qty,
+                'quantityUnits'         => 'EA',
+                'numberOfPieces'        => $qty,
                 'unitPrice' => [
-                    'amount' => $detail->harga,
+                    'amount'   => $unitPrice,
                     'currency' => $invoice->transaksi->shipping_currency ?? 'USD',
                 ],
                 'customsValue' => [
-                    'amount' => $detail->harga * $detail->qty,
+                    'amount'   => $unitPrice * $qty,
                     'currency' => 'USD',
                 ],
                 'weight' => [
                     'units' => 'KG',
-                    'value' => $detail->gros * $detail->qty,
+                    'value' => $detail->gros * $qty,
                 ],
             ];
         }
@@ -326,14 +444,13 @@ class FedExController extends Controller
         $shipperAddress = [
             'streetLines' => $this->splitStreetLines($this->shipper['address']),
             'city' => $this->shipper['city'],
-            // // 'stateOrProvinceCode' => $this->shipper['state'],
             'postalCode' => $this->shipper['postal_code'],
-            'countryCode' => $this->shipper['country_code']
+            'countryCode' => $this->shipper['country_code'],
         ];
         $shipperContact = [
             'personName' => $this->shipper['name'],
             'phoneNumber' => substr(preg_replace('/[^0-9]/', '', $this->shipper['phone']), 0, 15),
-            'companyName' => $this->shipper['company']
+            'companyName' => $this->shipper['company'],
         ];
 
         $recipientAddress = [
@@ -358,59 +475,54 @@ class FedExController extends Controller
             ],
         ];
 
-        $customsClearanceDetail = [
-            'commodities' => $commodities,
-            'dutiesPayment' => [
+        $requestedShipment = [
+            'shipper' => [
+                'contact' => $shipperContact,
+                'address' => $shipperAddress,
+            ],
+            'recipients' => $recipients,
+            'shipDatestamp' => now()->addDay()->format('Y-m-d'),
+            'serviceType' => $invoice->transaksi->shipping_service,
+            'packagingType' => 'YOUR_PACKAGING',
+            'pickupType' => 'DROPOFF_AT_FEDEX_LOCATION',
+            'blockInsightVisibility' => false,
+            'shippingChargesPayment' => [
                 'paymentType' => 'SENDER',
-                'payor' => [
-                    'responsibleParty' => [
-                        'accountNumber' => [
-                            'value' => $this->account_number
-                        ]
-                    ]
-                ]
-            ]
+                'payor' => $this->buildResponsiblePartyPayor(),
+            ],
+            'labelSpecification' => [
+                'imageType' => 'PDF',
+                'labelStockType' => 'PAPER_4X6',
+            ],
+            'requestedPackageLineItems' => [
+                [
+                    'weight' => [
+                        'units' => 'KG',
+                        'value' => $total_weight,
+                    ],
+                ],
+            ],
         ];
+
+        // customsClearanceDetail HANYA disertakan untuk pengiriman internasional
+        if ($isInternational) {
+            $requestedShipment['customsClearanceDetail'] = [
+                'commercialInvoice' => [
+                    'shipmentPurpose' => 'SOLD',
+                ],
+                'commodities' => $commodities,
+                'dutiesPayment' => [
+                    'paymentType' => 'SENDER',
+                    'payor' => $this->buildResponsiblePartyPayor(),
+                ],
+            ];
+        }
 
         $payload = [
             'labelResponseOptions' => 'URL_ONLY',
-            'requestedShipment' => [
-                'shipper' => [
-                    'contact' => $shipperContact,
-                    'address' => $shipperAddress,
-                ],
-                'recipients' => $recipients,
-                'shipDatestamp' => now()->addDay()->format('Y-m-d'),
-                'serviceType' => $invoice->transaksi->shipping_service,
-                'packagingType' => 'YOUR_PACKAGING',
-                'pickupType' => 'DROPOFF_AT_FEDEX_LOCATION',
-                'blockInsightVisibility' => false,
-                'shippingChargesPayment' => [
-                    'paymentType' => 'SENDER',
-                    'payor' => [
-                        'responsibleParty' => [
-                            'accountNumber' => [
-                                'value' => $this->account_number
-                            ]
-                        ]
-                    ]
-                ],
-                'customsClearanceDetail' => $customsClearanceDetail,
-                'labelSpecification' => [
-                    'imageType' => 'PDF',
-                    'labelStockType' => 'PAPER_4X6',
-                ],
-                'requestedPackageLineItems' => [
-                    [
-                        'weight' => [
-                            'units' => 'KG',
-                            'value' => $total_weight
-                        ]
-                    ]
-                ]
-            ],
+            'requestedShipment' => $requestedShipment,
             'accountNumber' => [
-                'value' => $this->account_number
+                'value' => $this->account_number,
             ],
         ];
 
@@ -444,7 +556,7 @@ class FedExController extends Controller
 
             return response()->json([
                 'error' => 'Failed to create shipment with FedEx.',
-                'details' => $response->json()
+                'details' => $response->json(),
             ], $response->status());
         }
 
@@ -507,8 +619,7 @@ class FedExController extends Controller
                         $stokProduk->stok -= $detail->qty;
                         $stokProduk->save();
                     } else {
-                        // Log jika stok untuk varian produk tidak ditemukan
-                        \Illuminate\Support\Facades\Log::warning('Product stock variant not found, stock not updated.', [
+                        Log::warning('Product stock variant not found, stock not updated.', [
                             'invoice_id' => $invoice->id,
                             'transaction_id' => $invoice->idtrans,
                             'product_id' => $detail->idproduk,
@@ -518,13 +629,13 @@ class FedExController extends Controller
                     }
                 }
             } else {
-                \Illuminate\Support\Facades\Log::warning('No details found for transaction, stock not updated.', [
+                Log::warning('No details found for transaction, stock not updated.', [
                     'invoice_id' => $invoice->id,
                     'transaction_id' => $invoice->idtrans,
                 ]);
             }
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Error updating stock: ' . $e->getMessage(), [
+            Log::error('Error updating stock: ' . $e->getMessage(), [
                 'invoice_id' => $invoice->id,
                 'transaction_id' => $invoice->idtrans,
             ]);
@@ -532,8 +643,126 @@ class FedExController extends Controller
 
         return response()->json([
             'success' => true,
-            'shipment' => $shipmentDetails
+            'shipment' => $shipmentDetails,
         ]);
+    }
+
+    // ============================================================
+    // TRACK MULTIPLE PIECE SHIPMENT (MPS) — ASSOCIATED SHIPMENTS
+    // POST /track/v1/associatedshipments
+    // ============================================================
+    public function associatedShipments(Request $request)
+    {
+        Log::info('FedEx associatedShipments method called.');
+
+        try {
+            $validated = $request->validate([
+                'trackingNumber'         => 'required|string',
+                'trackingNumberUniqueId' => 'nullable|string',
+                'carrierCode'            => 'nullable|string',
+                'shipDateBegin'          => 'nullable|date_format:Y-m-d',
+                'shipDateEnd'            => 'nullable|date_format:Y-m-d',
+                'associatedType'         => 'nullable|string|in:STANDARD_MPS',
+                'includeDetailedScans'   => 'nullable|boolean',
+                'resultsPerPage'         => 'nullable|integer|min:1',
+                'pagingToken'            => 'nullable|string',
+            ]);
+
+            Log::info('FedEx associatedShipments request:', $validated);
+
+            $token = $this->getAccessToken();
+            if (!$token) {
+                Log::error('FedEx associatedShipments: Failed to get access token.');
+                return response()->json(['error' => 'Failed to authenticate with FedEx.'], 500);
+            }
+
+            $url = $this->api_url . '/track/v1/associatedshipments';
+
+            // --- Bangun trackingNumberInfo ---
+            $trackingNumberInfo = [
+                'trackingNumber' => $validated['trackingNumber'],
+            ];
+            if (!empty($validated['trackingNumberUniqueId'])) {
+                $trackingNumberInfo['trackingNumberUniqueId'] = $validated['trackingNumberUniqueId'];
+            }
+            if (!empty($validated['carrierCode'])) {
+                $trackingNumberInfo['carrierCode'] = $validated['carrierCode'];
+            }
+
+            // --- Bangun masterTrackingNumberInfo ---
+            $masterTrackingNumberInfo = [
+                'trackingNumberInfo' => $trackingNumberInfo,
+            ];
+            if (!empty($validated['shipDateBegin'])) {
+                $masterTrackingNumberInfo['shipDateBegin'] = $validated['shipDateBegin'];
+            }
+            if (!empty($validated['shipDateEnd'])) {
+                $masterTrackingNumberInfo['shipDateEnd'] = $validated['shipDateEnd'];
+            }
+
+            // --- Payload utama ---
+            $payload = [
+                'includeDetailedScans'     => array_key_exists('includeDetailedScans', $validated)
+                    ? (bool) $validated['includeDetailedScans']
+                    : true,
+                'associatedType'           => $validated['associatedType'] ?? 'STANDARD_MPS',
+                'masterTrackingNumberInfo' => $masterTrackingNumberInfo,
+            ];
+
+            // --- pagingDetails opsional (untuk pagination hasil) ---
+            if (!empty($validated['resultsPerPage']) || !empty($validated['pagingToken'])) {
+                $pagingDetails = [];
+                if (!empty($validated['resultsPerPage'])) {
+                    $pagingDetails['resultsPerPage'] = (int) $validated['resultsPerPage'];
+                }
+                if (!empty($validated['pagingToken'])) {
+                    $pagingDetails['pagingToken'] = $validated['pagingToken'];
+                }
+                $payload['pagingDetails'] = $pagingDetails;
+            }
+
+            Log::info('FedEx associatedShipments payload:', ['payload' => $payload]);
+
+            $response = Http::withToken($token)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post($url, $payload);
+
+            FedexLog::create([
+                'endpoint' => $url,
+                'request_json' => json_encode($payload),
+                'response_json' => $response->body(),
+                'status_code' => $response->status(),
+            ]);
+
+            Log::info('FedEx associatedShipments response:', ['response' => $response->json()]);
+
+            if ($response->failed()) {
+                return response()->json([
+                    'error' => 'Failed to get associated shipments from FedEx.',
+                    'details' => $response->json(),
+                ], $response->status());
+            }
+
+            $responseBody = $response->json();
+
+            if (!empty($responseBody['errors'])) {
+                Log::warning('FedEx API returned errors.', ['errors' => $responseBody['errors']]);
+                return response()->json([
+                    'error' => 'FedEx service is currently unavailable.',
+                    'details' => $responseBody['errors'][0]['message'] ?? 'No additional details provided.',
+                ], 503);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $responseBody['output'] ?? $responseBody,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['error' => 'Validation failed.', 'details' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error('Error in associatedShipments: ' . $e->getMessage());
+            return response()->json(['error' => 'An unexpected error occurred.', 'details' => $e->getMessage()], 500);
+        }
     }
 
     // ============================================================
@@ -564,7 +793,7 @@ class FedExController extends Controller
             $payload = [
                 'inEffectAsOfTimestamp' => now()->format('Y-m-d'),
                 'validateAddressControlParameters' => [
-                    'includeResolutionTokens' => true
+                    'includeResolutionTokens' => true,
                 ],
                 'addressesToValidate' => [
                     [
@@ -575,9 +804,9 @@ class FedExController extends Controller
                             'postalCode' => $validated['postalCode'],
                             'countryCode' => $validated['countryCode'],
                         ],
-                        'clientReferenceId' => 'AddressValidation-1'
-                    ]
-                ]
+                        'clientReferenceId' => 'AddressValidation-1',
+                    ],
+                ],
             ];
             Log::info('FedEx address validation payload:', $payload);
 
@@ -596,7 +825,7 @@ class FedExController extends Controller
                 Log::error('FedEx address validation failed.', ['response' => $response->body()]);
                 return response()->json([
                     'error' => 'Failed to validate address with FedEx.',
-                    'details' => $response->json()
+                    'details' => $response->json(),
                 ], $response->status());
             }
 
@@ -609,34 +838,26 @@ class FedExController extends Controller
     }
 
     /**
-     * Generate the streetLines field for the FedEx API request based on country-specific rules.
-     *
-     * @param string $address1 The first line of the street address.
-     * @param string|null $address2 The second line of the street address (optional).
-     * @param string $countryCode The two-letter ISO country code.
-     * @return array The formatted streetLines array for the FedEx API.
+     * Generate streetLines sesuai aturan spesifik negara (mis. Thailand harus 1 baris).
      */
     private function generateFedExStreetLines(string $address1, ?string $address2, string $countryCode): array
     {
-        // Clean function: remove line breaks and extra spaces
         $clean = function (?string $text) {
             if (!$text) return null;
             $text = str_replace(["\n", "\r", "\t"], ' ', $text);
-            $text = preg_replace('/\s+/', ' ', $text); // normalize spaces
+            $text = preg_replace('/\s+/', ' ', $text);
             return trim($text);
         };
 
         $address1 = $clean($address1);
         $address2 = $clean($address2);
 
-        // Thailand must be one line
         if (strtoupper($countryCode) === 'TH') {
             return [trim($address1 . ' ' . $address2)];
         }
 
-        // Other countries: up to 2 lines
         $streetLines = array_filter([$address1, $address2]);
-        return array_slice($streetLines, 0, 2); // FedEx max 2 lines
+        return array_slice($streetLines, 0, 2);
     }
 
     private function splitStreetLines($addressLine1, $addressLine2 = null)

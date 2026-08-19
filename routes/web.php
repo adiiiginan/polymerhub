@@ -103,6 +103,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/user/{user}', [AdminController::class, 'destroy'])->name('user.destroy');
 
         Route::get('/shipping/lion/print/{invoice}', [ShipController::class, 'print'])->name('lion.print');
+        Route::get('/ship/fedex/print/{id}', [ShipController::class, 'printFedexLabel'])->name('fedex.print');
         Route::post('/shipping/lion/update-status-after-print/{invoice}', [ShipController::class, 'updateStatusAfterPrint'])->name('ship.update-status-after-print');
     });
 });

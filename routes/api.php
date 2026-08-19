@@ -10,7 +10,12 @@ use App\Http\Controllers\Frontend\TrackingController;
 
 
 
+use App\Http\Controllers\Admin\ProdukController;
+
 Route::post('/webhook/lionparcel', [LionParcelWebhookController::class, 'handle']);
+
+Route::get('/get-ukurans-by-shape/{shapeId}', [ProdukController::class, 'getUkuransByShape']);
+
 
 Route::get('/locations/countries', [LocationController::class, 'getCountries']);
 Route::get('/locations/{countryCode}/has-states', [LocationController::class, 'hasStates']);

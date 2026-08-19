@@ -12,7 +12,6 @@ use App\Models\ProdukCategory;
 use App\Models\Ukuran;
 use Illuminate\Http\Request;
 use App\Models\ProdukStok;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 
@@ -20,7 +19,7 @@ class ProdukController extends Controller
 {
     // =========================================================
     // Helper: tentukan tipe produk berdasarkan produk_category
-    // Return: 'rulon' | 'tygon' | 'toptape' | null
+    // Return: 'rulon' | 'tygon' | 'sg-25' | null
     // =========================================================
     private function getCategoryType(?ProdukCategory $cat): ?string
     {
@@ -28,14 +27,13 @@ class ProdukController extends Controller
 
         $name = strtolower($cat->category);
 
-        if (str_contains($name, 'rulon')) return 'rulon';
-
+        if (str_contains($name, 'rulon'))                                                           return 'rulon';
         if (str_contains($name, 'tygon') || str_contains($name, 'tubing') || str_contains($name, 'tube')) return 'tygon';
-
-        if (str_contains($name, 'top tape') || str_contains($name, 'toptape') || str_contains($name, 'tape')) return 'toptape';
+        if (str_contains($name, 'top tape') || str_contains($name, 'sg-25') || str_contains($name, 'tape')) return 'sg-25';
 
         return null;
     }
+
 
     private function getFieldConfig(?ProdukCategory $cat): array
     {
@@ -44,7 +42,7 @@ class ProdukController extends Controller
             'categoryType'   => $type,
             'showRulon'      => $type === 'rulon',
             'showTubing'     => $type === 'tygon',
-            'showTopTape'    => $type === 'toptape',
+            'showSg25'       => $type === 'sg-25',
             'showMechanical' => $type === 'rulon',
         ];
     }
@@ -54,7 +52,7 @@ class ProdukController extends Controller
     // =========================================================
     public function index(Request $request)
     {
-        $query = Produk::with('variants.jenis', 'variants.ukuran');
+        $query = Produk::with(['variants', 'variants.jenis', 'kategori']);
 
         if ($request->has('search')) {
             $query->where('nama_produk', 'like', '%' . $request->input('search') . '%');
@@ -80,6 +78,7 @@ class ProdukController extends Controller
         $shapes         = ProdukJenis::where('type', 'shape')->get();
         $jenis          = ProdukJenis::where('type', 'tygon')->get();
         $produkCategory = ProdukCategory::all();
+        $ukuranSg25     = Ukuran::where('id_produk_jenis', 11)->get();
 
         $ukurans = $request->filled('shape_id')
             ? Ukuran::where('id_produk_jenis', $request->shape_id)->get()
@@ -92,7 +91,7 @@ class ProdukController extends Controller
         $fieldConfig = $this->getFieldConfig($selectedCat);
 
         return view('admin.produk.create', array_merge(
-            compact('kode', 'kategori', 'environment', 'shapes', 'jenis', 'ukurans', 'produkCategory', 'selectedCat'),
+            compact('kode', 'kategori', 'environment', 'shapes', 'jenis', 'ukurans', 'ukuranSg25', 'produkCategory', 'selectedCat'),
             $fieldConfig
         ));
     }
@@ -102,243 +101,161 @@ class ProdukController extends Controller
     // =========================================================
     public function store(Request $request)
     {
-        $selectedCat = $request->filled('id_cat')
-            ? ProdukCategory::find($request->id_cat)
-            : null;
-        $fieldConfig = $this->getFieldConfig($selectedCat);
-        $type        = $fieldConfig['categoryType'];
+        // ── 1. Validasi umum ────────────────────────────────────────
+        $request->validate([
+            'id_cat'      => 'required',
+            'sku'         => 'required|string|max:100|unique:produk,sku',
+            'nama_produk' => 'required|string|max:255',
+            'gambar'      => 'nullable|image|max:2048',
+        ]);
 
-        // -------------------------------------------------------
-        // Validation rules dasar
-        // -------------------------------------------------------
-        $rules = [
-            'nama_produk'  => 'required|string|max:255',
-            'sku'          => 'required|string|max:255',
-            'id_cat'       => 'required|exists:produk_category,id',
-            'id_kat'       => 'nullable|exists:produk_kategori,id',
-            'deskripsi'    => 'nullable|string',
-            'merk'         => 'nullable|string|max:255',
-            'tempratur'    => 'nullable|string|max:255',
-            'status_aktif' => 'required|boolean',
-            'eu1935'       => 'nullable|in:ya,tidak',
-            'fda'          => 'nullable|in:ya,tidak',
-            'usp'          => 'nullable|in:ya,tidak',
-            'weight'       => 'nullable|numeric',
-            'length'       => 'nullable|numeric',
-            'width'        => 'nullable|numeric',
-            'height'       => 'nullable|numeric',
-        ];
+        // ── Tentukan tipe produk ─────────────────────────────────────
+        $cat    = ProdukCategory::find($request->id_cat);
+        $type   = $this->getCategoryType($cat);
+        $isTape = $type === 'sg-25';
 
-        // -------------------------------------------------------
-        // Rules khusus RULON
-        // -------------------------------------------------------
-        if ($type === 'rulon') {
-            $rules['shape_id']        = 'required|exists:produk_jenis,id';
-            $rules['id_ukuran']       = 'required|array|min:1';
-            $rules['id_ukuran.*']     = 'exists:produk_ukuran,id';
-            $rules['stok_variant']    = 'required|array|min:1';
-            $rules['stok_variant.*']  = 'integer|min:0';
-            $rules['harga_variant']   = 'required|array|min:1';
-            $rules['harga_variant.*'] = 'numeric|min:0';
-            $rules['id_environmant']  = 'nullable|exists:produk_envi,id';
-            $rules['pressure']        = 'nullable|string|max:255';
-            $rules['mating']          = 'nullable|string|max:255';
-            $rules['max_pv']          = 'nullable|numeric|min:0';
-            $rules['maximum_p']       = 'nullable|string|max:255';
-            $rules['max_v']           = 'nullable|numeric|min:0';
-            $rules['friction']        = 'nullable|string|max:255';
-            $rules['elongation']      = 'nullable|string|max:255';
-            $rules['deformation']     = 'nullable|numeric';
-            $rules['tensile']         = 'nullable|numeric';
-            $rules['spesific']        = 'nullable|numeric';
-        }
-
-        // -------------------------------------------------------
-        // Rules khusus TYGON 3350
-        // -------------------------------------------------------
-        if ($type === 'tygon') {
-            $rules['tygon_size_category']        = 'required|exists:produk_jenis,id';
-            $rules['outer_diameter']             = 'nullable|regex:/^[\d\.\/\s]+$/';
-            $rules['inner_diameter']             = 'nullable|regex:/^[\d\.\/\s]+$/';
-            $rules['wall_thickness']             = 'nullable|regex:/^[\d\.\/\s]+$/';
-            $rules['min_bend_radius']            = 'nullable|regex:/^[\d\.\/\s]+$/';
-            $rules['tygon_length']               = 'nullable|numeric|min:0';
-            $rules['tygon_stok']                 = 'nullable|integer|min:0';
-            $rules['tygon_harga']                = 'nullable|numeric|min:0';
-            $rules['tygon_working_pressure_73']  = 'nullable|string|max:20';
-            $rules['tygon_working_pressure_320'] = 'nullable|string|max:20';
-            $rules['tygon_vacuum_73']            = 'nullable|string|max:20';
-            $rules['tygon_vacuum_320']           = 'nullable|string|max:20';
-        }
-
-        // -------------------------------------------------------
-        // Rules khusus TOP TAPE
-        // -------------------------------------------------------
-        if ($type === 'toptape') {
-            $rules['tape_width']     = 'nullable|numeric|min:0';
-            $rules['tape_thickness'] = 'nullable|numeric|min:0';
-            $rules['tape_length']    = 'nullable|numeric|min:0';
-            $rules['tape_color']     = 'nullable|string|max:100';
-            $rules['tape_adhesive']  = 'nullable|string|max:100';
-            $rules['tape_stok']      = 'nullable|integer|min:0';
-            $rules['tape_harga']     = 'nullable|numeric|min:0';
-            $rules['tensile']        = 'nullable|numeric';
-            $rules['elongation']     = 'nullable|string|max:255';
-            $rules['spesific']       = 'nullable|numeric';
-            $rules['friction']       = 'nullable|string|max:255';
-        }
-
-        $messages = [
-            'tygon_size_category.exists' => 'Kategori ukuran tidak valid.',
-            'inner_diameter.regex'       => 'Format inner diameter tidak valid.',
-            'outer_diameter.regex'       => 'Format outer diameter tidak valid.',
-            'wall_thickness.regex'       => 'Format wall thickness tidak valid.',
-            'min_bend_radius.regex'      => 'Format min bend radius tidak valid.',
-        ];
-
-        $request->validate($rules, $messages);
-
-        // -------------------------------------------------------
-        // Upload gambar
-        // -------------------------------------------------------
-        $gambarPath = null;
-        if ($request->hasFile('gambar')) {
-            $file       = $request->file('gambar');
-            $filename   = time() . '_' . $file->getClientOriginalName();
-            $file->move(public_path('backend/assets/media/produk'), $filename);
-            $gambarPath = $filename;
-        }
-
-        // -------------------------------------------------------
-        // Data dasar
-        // -------------------------------------------------------
-        $dataProduk = [
-            'kode_produk'  => $this->generateKodeProduk(),
-            'nama_produk'  => $request->nama_produk,
-            'sku'          => $request->sku,
-            'deskripsi'    => $request->deskripsi,
-            'id_kat'       => $request->id_kat,
-            'merk'         => $request->merk,
-            'tempratur'    => $request->tempratur,
-            'eu1935'       => $request->eu1935,
-            'fda'          => $request->fda,
-            'usp'          => $request->usp,
-            'status_aktif' => $request->status_aktif,
-            'gambar'       => $gambarPath,
-        ];
-
-        // -------------------------------------------------------
-        // Data khusus RULON
-        // -------------------------------------------------------
-        if ($type === 'rulon') {
-            $dataProduk['id_jenis']       = $request->shape_id;
-            $dataProduk['id_environmant'] = $request->id_environmant;
-            $dataProduk['pressure']       = $request->pressure;
-            $dataProduk['mating']         = $request->mating;
-            $dataProduk['max_pv']         = $request->max_pv;
-            $dataProduk['maximum_p']      = $request->maximum_p;
-            $dataProduk['max_v']          = $request->max_v;
-            $dataProduk['friction']       = $request->friction;
-            $dataProduk['elongation']     = $request->elongation;
-            $dataProduk['deformation']    = $request->deformation;
-            $dataProduk['tensile']        = $request->tensile;
-            $dataProduk['spesific']       = $request->spesific;
-        }
-
-
-        // -------------------------------------------------------
-        // Data khusus TYGON 3350
-        // -------------------------------------------------------
-        if ($type === 'tygon') {
-            $jenisRecord = ProdukJenis::find($request->tygon_size_category);
-
-            $dataProduk['id_cat']                    = $request->id_cat;
-            $dataProduk['tygon_size_category']        = $jenisRecord ? strtolower($jenisRecord->jenis) : null;
-            $dataProduk['inner_diameter']             = $request->inner_diameter;
-            $dataProduk['outer_diameter']             = $request->outer_diameter;
-            $dataProduk['wall_thickness']             = $request->wall_thickness;
-            $dataProduk['min_bend_radius']            = $request->min_bend_radius;
-            $dataProduk['tygon_length']               = $request->tygon_length;
-            $dataProduk['tygon_working_pressure_73']  = $request->tygon_working_pressure_73;
-            $dataProduk['tygon_working_pressure_320'] = $request->tygon_working_pressure_320;
-            $dataProduk['tygon_vacuum_73']            = $request->tygon_vacuum_73;
-            $dataProduk['tygon_vacuum_320']           = $request->tygon_vacuum_320;
-        }
-
-        // ← TARUH DI SINI sebelum create
-
-
-        $produk = Produk::create($dataProduk);
-
-        // -------------------------------------------------------
-        // Simpan stok & harga — TYGON ke produk_stok
-        // -------------------------------------------------------
-        if ($type === 'tygon') {
-            $jenisRecord = ProdukJenis::find($request->tygon_size_category);
-
-            ProdukStok::create([
-                'id_produk' => $produk->id,
-                'id_jenis'  => $jenisRecord ? $jenisRecord->id : null,
-                'id_ukuran' => null,   // tidak ada ukuran untuk tygon
-                'stok'      => $request->tygon_stok  ?? 0,
-                'harga'     => $request->tygon_harga ?? 0,
-                'weight'    => $request->weight  ?? null,
-                'length'    => $request->length  ?? null,
-                'width'     => $request->width   ?? null,
-                'height'    => $request->height  ?? null,
+        // ── Validasi tambahan khusus SG-25 ──────────────────────────
+        if ($isTape) {
+            $request->validate([
+                'sg25_ukuran_id'   => 'required|array|min:1',
+                'sg25_ukuran_id.*' => 'required|exists:produk_ukuran,id',
+                'sg25_stok'        => 'required|array|min:1',
+                'sg25_stok.*'      => 'required|integer|min:0',
+                'sg25_harga'       => 'required|array|min:1',
+                'sg25_harga.*'     => 'required|integer|min:0',
             ]);
         }
 
-        // -------------------------------------------------------
-        // Data khusus TOP TAPE
-        // -------------------------------------------------------
-        if ($type === 'toptape') {
-            $dataProduk['friction']   = $request->friction;
-            $dataProduk['elongation'] = $request->elongation;
-            $dataProduk['tensile']    = $request->tensile;
-            $dataProduk['spesific']   = $request->spesific;
+        // ── 2. Upload gambar ─────────────────────────────────────────
+        $gambarPath = null;
+        if ($request->hasFile('gambar')) {
+            $file     = $request->file('gambar');
+            $namaFile = time() . '.' . $file->getClientOriginalExtension();
+            $file->move(public_path('backend/assets/media/produk'), $namaFile);
+            $gambarPath = $namaFile; // hanya simpan nama file saja di DB
         }
 
-        $produk = Produk::create($dataProduk);
+        // ── 3. Bungkus dalam transaksi ───────────────────────────────
+        DB::transaction(function () use ($request, $gambarPath, $isTape, $type) {
 
-        // -------------------------------------------------------
-        // Simpan stok & harga — RULON
-        // -------------------------------------------------------
-        if ($type === 'rulon' && $request->has('id_ukuran')) {
-            foreach ($request->id_ukuran as $i => $idUkuran) {
-                if ($idUkuran) {
-                    ProdukStok::create([
-                        'id_produk' => $produk->id,
-                        'id_jenis'  => $request->shape_id,
-                        'id_ukuran' => $idUkuran,
-                        'stok'      => $request->stok_variant[$i] ?? 0,
-                        'harga'     => $request->harga_variant[$i] ?? 0,
+            // -- Simpan data produk utama --
+            // Catatan: kolom weight/length/width/height TIDAK ada di tabel produk,
+            // kolom tersebut ada di produk_stok. Kolom eu1935/fda/usp di DB bertipe
+            // enum('Ya','Tidak') sehingga perlu ucfirst().
+            $produk = Produk::create([
+                'kode_produk'  => $request->kode_produk,
+                'sku'          => $request->sku,
+                'nama_produk'  => $request->nama_produk,
+                'id_cat'       => $request->id_cat,
+                'id_kat'       => $request->id_kat,
+                'merk'         => $request->merk,
+                'deskripsi'    => $request->deskripsi,
+                'status_aktif' => $request->status_aktif ?? 1,
+                'gambar'       => $gambarPath,
+
+                // Spesifikasi teknis umum
+                'tensile'    => $request->tensile,
+                'elongation' => $request->elongation,
+                'spesific'   => $request->spesific,
+                'friction'   => $request->friction,
+
+                // Spesifikasi khusus Rulon
+                'id_environmant' => $request->id_environmant,
+                'pressure'       => $request->pressure,
+                'mating'         => $request->mating,
+                'max_pv'         => $request->max_pv,
+                'maximum_p'      => $request->maximum_p,
+                'max_v'          => $request->max_v,
+                'deformation'    => $request->deformation,
+
+                // enum di DB adalah 'Ya'/'Tidak' (kapital), form kirim 'ya'/'tidak'
+                'eu1935' => $request->eu1935 ? ucfirst($request->eu1935) : null,
+                'fda'    => $request->fda    ? ucfirst($request->fda)    : null,
+                'usp'    => $request->usp    ? ucfirst($request->usp)    : null,
+
+                // Spesifikasi khusus Tygon
+                'tygon_size_category'        => $request->tygon_size_category,
+                'inner_diameter'             => $request->inner_diameter,
+                'outer_diameter'             => $request->outer_diameter,
+                'wall_thickness'             => $request->wall_thickness,
+                'tygon_length'               => $request->tygon_length,
+                'min_bend_radius'            => $request->min_bend_radius,
+                'tygon_working_pressure_73'  => $request->tygon_working_pressure_73,
+                'tygon_working_pressure_320' => $request->tygon_working_pressure_320,
+                'tygon_vacuum_73'            => $request->tygon_vacuum_73,
+                'tygon_vacuum_320'           => $request->tygon_vacuum_320,
+            ]);
+
+            // ── Simpan stok Rulon ke produk_stok ────────────────────────
+            if ($type === 'rulon' && $request->filled('id_ukuran')) {
+                $ukuranArr = (array) $request->input('id_ukuran');
+                $stokArr   = (array) $request->input('stok_variant');
+                $hargaArr  = (array) $request->input('harga_variant');
+
+                foreach ($ukuranArr as $i => $ukuranId) {
+                    if (!$ukuranId) continue;
+
+                    DB::table('produk_stok')->insert([
+                        'id_produk'  => $produk->id,
+                        'id_jenis'   => $request->shape_id,
+                        'id_ukuran'  => $ukuranId,
+                        'stok'       => $stokArr[$i]  ?? 0,
+                        'harga'      => $hargaArr[$i] ?? 0,
+                        'weight'     => $request->weight,
+                        'length'     => $request->length,
+                        'width'      => $request->width,
+                        'height'     => $request->height,
+                        'created_at' => now(),
+                        'updated_at' => now(),
                     ]);
                 }
             }
-        }
 
-        // -------------------------------------------------------
-        // Simpan stok & harga — TYGON
-        // -------------------------------------------------------
-        if ($type === 'tygon') {
-            $produk->update([
-                'stok'  => $request->tygon_stok  ?? 0,
-                'harga' => $request->tygon_harga ?? 0,
-            ]);
-        }
+            // ── Tygon → produk_stok ─────────────────────────────────────
+            if ($type === 'tygon') {
+                DB::table('produk_stok')->insert([
+                    'id_produk'  => $produk->id,
+                    'id_jenis'   => $request->tygon_size_category,
+                    'id_ukuran'  => null,
+                    'stok'       => $request->tygon_stok  ?? 0,
+                    'harga'      => $request->tygon_harga ?? 0,
+                    'weight'     => $request->weight,
+                    'length'     => $request->length,
+                    'width'      => $request->width,
+                    'height'     => $request->height,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
 
-        // -------------------------------------------------------
-        // Simpan stok & harga — TOP TAPE
-        // -------------------------------------------------------
-        if ($type === 'toptape') {
-            $produk->update([
-                'stok'  => $request->tape_stok  ?? 0,
-                'harga' => $request->tape_harga ?? 0,
-            ]);
-        }
+            // ── SG-25 → produk_stok ─────────────────────────────────────
+            if ($isTape) {
+                $ukuranIds = $request->input('sg25_ukuran_id', []);
+                $stoks     = $request->input('sg25_stok', []);
+                $hargas    = $request->input('sg25_harga', []);
 
-        return redirect()->route('admin.produk.index')
+                foreach ($ukuranIds as $i => $ukuranId) {
+                    if (!$ukuranId) continue;
+
+                    DB::table('produk_stok')->insert([
+                        'id_produk'  => $produk->id,
+                        'id_jenis'   => 11,
+                        'id_ukuran'  => $ukuranId,
+                        'stok'       => $stoks[$i]  ?? 0,
+                        'harga'      => $hargas[$i] ?? 0,
+                        'weight'     => $request->weight,
+                        'length'     => $request->length,
+                        'width'      => $request->width,
+                        'height'     => $request->height,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+        });
+
+        return redirect()
+            ->route('admin.produk.index')
             ->with('success', 'Produk berhasil ditambahkan.');
     }
 
@@ -352,15 +269,23 @@ class ProdukController extends Controller
         $shapes         = ProdukJenis::where('type', 'shape')->get();
         $jenis          = ProdukJenis::where('type', 'tygon')->get();
         $produkCategory = ProdukCategory::all();
+        $ukuranSg25     = Ukuran::where('id_produk_jenis', 11)->get();
 
-        $produk->load('variants.jenis', 'variants.ukuran');
+        // ✅ Query langsung bypass relasi 'stok' yang konflik dengan kolom DB
+        $variantList = ProdukStok::where('id_produk', $produk->id)->get();
 
-        $shape_id_for_ukurans = $produk->id_jenis;
-        if ($produk->variants->isNotEmpty()) {
-            $shape_id_for_ukurans = $produk->variants->first()->id_jenis;
-        }
+        // ✅ Set relasi manual agar blade bisa pakai $produk->variants
+        $produk->setRelation('variants', $variantList);
 
-        $ukurans = Ukuran::where('id_produk_jenis', $shape_id_for_ukurans)->get();
+        // Ambil stok pertama untuk data dimensi dan shape
+        $firstStock = $variantList->first();
+
+        // Ambil id_jenis dari stok pertama jika ada
+        $shape_id_for_ukurans = $firstStock ? $firstStock->id_jenis : null;
+
+        $ukurans = $shape_id_for_ukurans
+            ? Ukuran::where('id_produk_jenis', $shape_id_for_ukurans)->get()
+            : collect();
 
         $selectedCat = $produk->id_cat
             ? ProdukCategory::find($produk->id_cat)
@@ -369,7 +294,18 @@ class ProdukController extends Controller
         $fieldConfig = $this->getFieldConfig($selectedCat);
 
         return view('admin.produk.edit', array_merge(
-            compact('produk', 'kategori', 'environment', 'shapes', 'jenis', 'ukurans', 'produkCategory', 'selectedCat'),
+            compact(
+                'produk',
+                'kategori',
+                'environment',
+                'shapes',
+                'jenis',
+                'ukurans',
+                'ukuranSg25',
+                'produkCategory',
+                'selectedCat',
+                'firstStock'
+            ),
             $fieldConfig
         ));
     }
@@ -379,8 +315,14 @@ class ProdukController extends Controller
     // =========================================================
     public function show($id)
     {
-        $produk = Produk::with(['kategori', 'envi'])->findOrFail($id);
-        return view('Frontend.produk_detail', compact('produk'));
+        $produk = Produk::with(['kategori', 'envi', 'variants', 'variants.jenis', 'variants.ukuran', 'category'])
+            ->findOrFail($id);
+
+        // Set relasi variants secara manual (bypass kolom 'stok')
+        $variantList = ProdukStok::where('id_produk', $id)->with(['jenis', 'ukuran'])->get();
+        $produk->setRelation('variants', $variantList);
+
+        return view('admin.produk.detail', compact('produk'));
     }
 
     // =========================================================
@@ -388,43 +330,22 @@ class ProdukController extends Controller
     // =========================================================
     public function update(Request $request, Produk $produk)
     {
+        // Dapatkan kategori dan tipe produk
         $selectedCat = $request->filled('id_cat')
             ? ProdukCategory::find($request->id_cat)
             : ($produk->id_cat ? ProdukCategory::find($produk->id_cat) : null);
+
         $fieldConfig = $this->getFieldConfig($selectedCat);
         $type        = $fieldConfig['categoryType'];
 
-        // -------------------------------------------------------
-        // Susun array variants (khusus Rulon)
-        // -------------------------------------------------------
-        $variants = [];
-        if ($request->has('id_ukuran')) {
-            foreach ($request->id_ukuran as $key => $id_ukuran) {
-                $variants[$key] = [
-                    'id_ukuran' => $id_ukuran,
-                    'sku'       => $request->sku_variant[$key]    ?? null,
-                    'stok'      => $request->stok_variant[$key]   ?? null,
-                    'harga'     => $request->harga_variant[$key]  ?? null,
-                    'length'    => $request->length_variant[$key] ?? null,
-                    'width'     => $request->width_variant[$key]  ?? null,
-                    'height'    => $request->height_variant[$key] ?? null,
-                    'weight'    => $request->weight_variant[$key] ?? null,
-                ];
-            }
-        }
-        $request->merge(['variants' => $variants]);
-
-        // -------------------------------------------------------
-        // Validation rules dasar
-        // -------------------------------------------------------
+        // Aturan validasi dasar
         $rules = [
             'nama_produk'  => 'required|string|max:255',
-            'sku'          => 'required|string|max:255',
+            'sku'          => 'required|string|max:255|unique:produk,sku,' . $produk->id,
             'status_aktif' => 'nullable|boolean',
             'id_kat'       => 'nullable|exists:produk_kategori,id',
             'deskripsi'    => 'nullable|string',
             'merk'         => 'nullable|string|max:255',
-            'tempratur'    => 'nullable|string|max:255',
             'eu1935'       => 'nullable|in:ya,tidak',
             'fda'          => 'nullable|in:ya,tidak',
             'usp'          => 'nullable|in:ya,tidak',
@@ -434,224 +355,173 @@ class ProdukController extends Controller
             'height'       => 'nullable|numeric',
         ];
 
-        // -------------------------------------------------------
-        // Rules khusus RULON
-        // -------------------------------------------------------
+        // Aturan validasi spesifik per tipe produk
         if ($type === 'rulon') {
-            $rules['id_kategori']            = 'required|exists:produk_kategori,id';
-            $rules['id_shape']               = 'required|exists:produk_jenis,id';
-            $rules['variants']               = 'nullable|array';
-            $rules['variants.*.id_ukuran']   = 'required|exists:produk_ukuran,id';
-            $rules['variants.*.sku']         = 'nullable|string|max:255';
-            $rules['variants.*.stok']        = 'nullable|integer|min:0';
-            $rules['variants.*.harga']       = 'nullable|numeric|min:0';
-            $rules['variants.*.length']      = 'nullable|numeric';
-            $rules['variants.*.width']       = 'nullable|numeric';
-            $rules['variants.*.height']      = 'nullable|numeric';
-            $rules['variants.*.weight']      = 'nullable|numeric';
-            $rules['id_environmant']         = 'nullable|exists:produk_envi,id';
-            $rules['pressure']               = 'nullable|string|max:255';
-            $rules['mating']                 = 'nullable|string|max:255';
-            $rules['max_pv']                 = 'nullable|numeric|min:0';
-            $rules['maximum_p']              = 'nullable|string|max:255';
-            $rules['max_v']                  = 'nullable|numeric|min:0';
-            $rules['friction']               = 'nullable|string|max:255';
-            $rules['elongation']             = 'nullable|string|max:255';
-            $rules['deformation']            = 'nullable|numeric';
-            $rules['tensile']                = 'nullable|numeric';
-            $rules['spesific']               = 'nullable|numeric';
-        }
-
-        // -------------------------------------------------------
-        // Rules khusus TYGON 3350
-        // -------------------------------------------------------
-        if ($type === 'tygon') {
-            $rules['tygon_size_category']        = 'required|exists:produk_jenis,id';
-            $rules['outer_diameter']             = 'nullable|regex:/^[\d\.\/\s]+$/';
-            $rules['inner_diameter']             = 'nullable|regex:/^[\d\.\/\s]+$/';
-            $rules['wall_thickness']             = 'nullable|regex:/^[\d\.\/\s]+$/';
-            $rules['min_bend_radius']            = 'nullable|regex:/^[\d\.\/\s]+$/';
-            $rules['tygon_length']               = 'nullable|numeric|min:0';
-            $rules['tygon_stok']                 = 'nullable|integer|min:0';
-            $rules['tygon_harga']                = 'nullable|numeric|min:0';
-            $rules['tygon_working_pressure_73']  = 'nullable|string|max:20';
-            $rules['tygon_working_pressure_320'] = 'nullable|string|max:20';
-            $rules['tygon_vacuum_73']            = 'nullable|string|max:20';
-            $rules['tygon_vacuum_320']           = 'nullable|string|max:20';
-        }
-
-        // -------------------------------------------------------
-        // Rules khusus TOP TAPE
-        // -------------------------------------------------------
-        if ($type === 'toptape') {
-            $rules['tape_width']     = 'nullable|numeric|min:0';
-            $rules['tape_thickness'] = 'nullable|numeric|min:0';
-            $rules['tape_length']    = 'nullable|numeric|min:0';
-            $rules['tape_color']     = 'nullable|string|max:100';
-            $rules['tape_adhesive']  = 'nullable|string|max:100';
-            $rules['tape_stok']      = 'nullable|integer|min:0';
-            $rules['tape_harga']     = 'nullable|numeric|min:0';
-            $rules['tensile']        = 'nullable|numeric';
-            $rules['elongation']     = 'nullable|string|max:255';
-            $rules['spesific']       = 'nullable|numeric';
+            $rules['shape_id']       = 'required|exists:produk_jenis,id';
+            $rules['id_environmant'] = 'nullable|exists:produk_envi,id';
+            $rules['pressure']       = 'nullable|string|max:255';
+            $rules['mating']         = 'nullable|string|max:255';
+            $rules['max_pv']         = 'nullable|numeric|min:0';
+            $rules['maximum_p']      = 'nullable|string|max:255';
+            $rules['max_v']          = 'nullable|numeric|min:0';
             $rules['friction']       = 'nullable|string|max:255';
+            $rules['elongation']     = 'nullable|string|max:255';
+            $rules['deformation']    = 'nullable|numeric';
+            $rules['tensile']        = 'nullable|numeric';
+            $rules['spesific']       = 'nullable|numeric';
+        }
+
+        if ($type === 'tygon') {
+            $rules['tygon_size_category'] = 'required|exists:produk_jenis,id';
+            $rules['outer_diameter']      = 'nullable|regex:/^[\d\.\/\s]+$/';
+            $rules['inner_diameter']      = 'nullable|regex:/^[\d\.\/\s]+$/';
+            $rules['wall_thickness']      = 'nullable|regex:/^[\d\.\/\s]+$/';
+            $rules['min_bend_radius']     = 'nullable|regex:/^[\d\.\/\s]+$/';
+            $rules['tygon_length']        = 'nullable|numeric|min:0';
+            $rules['tygon_stok']          = 'nullable|integer|min:0';
+            $rules['tygon_harga']         = 'nullable|numeric|min:0';
+        }
+
+        if ($type === 'sg-25') {
+            $rules['sg25_ukuran_id']   = 'nullable|array';
+            $rules['sg25_ukuran_id.*'] = 'nullable|exists:produk_ukuran,id';
+            $rules['sg25_stok']        = 'nullable|array';
+            $rules['sg25_stok.*']      = 'nullable|integer|min:0';
+            $rules['sg25_harga']       = 'nullable|array';
+            $rules['sg25_harga.*']     = 'nullable|integer|min:0';
         }
 
         if ($request->hasFile('gambar')) {
             $rules['gambar'] = 'image|mimes:jpeg,png,jpg,gif,svg|max:2048';
         }
 
-        $messages = [
-            'tygon_size_category.exists' => 'Kategori ukuran tidak valid.',
-            'inner_diameter.regex'       => 'Format inner diameter tidak valid.',
-            'outer_diameter.regex'       => 'Format outer diameter tidak valid.',
-            'wall_thickness.regex'       => 'Format wall thickness tidak valid.',
-            'min_bend_radius.regex'      => 'Format min bend radius tidak valid.',
-        ];
+        $request->validate($rules);
 
-        $request->validate($rules, $messages);
+        // Mulai transaksi database
+        DB::transaction(function () use ($request, $produk, $type) {
+            // Handle upload gambar baru
+            if ($request->hasFile('gambar')) {
+                $gambar   = $request->file('gambar');
+                $namaFile = time() . '.' . $gambar->getClientOriginalExtension();
+                $gambar->move(public_path('backend/assets/media/produk'), $namaFile);
 
-        // -------------------------------------------------------
-        // Handle upload gambar baru
-        // -------------------------------------------------------
-        if ($request->hasFile('gambar')) {
-            $gambar   = $request->file('gambar');
-            $namaFile = time() . '.' . $gambar->getClientOriginalExtension();
-            $gambar->move(public_path('backend/assets/media/produk'), $namaFile);
-
-            if ($produk->gambar && file_exists(public_path('backend/assets/media/produk/' . $produk->gambar))) {
-                unlink(public_path('backend/assets/media/produk/' . $produk->gambar));
+                // Hapus gambar lama jika ada
+                if ($produk->gambar && file_exists(public_path('backend/assets/media/produk/' . $produk->gambar))) {
+                    unlink(public_path('backend/assets/media/produk/' . $produk->gambar));
+                }
+                $produk->gambar = $namaFile;
             }
 
-            $produk->gambar = $namaFile;
-        }
+            // Update data produk utama
+            $produk->fill([
+                'nama_produk'  => $request->nama_produk,
+                'sku'          => $request->sku,
+                'deskripsi'    => $request->deskripsi,
+                'id_kat'       => $request->id_kat ?? $request->id_kategori,
+                'merk'         => $request->merk,
+                'status_aktif' => $request->status_aktif ?? 1,
+                'eu1935'       => $request->eu1935 ? ucfirst($request->eu1935) : null,
+                'fda'          => $request->fda    ? ucfirst($request->fda)    : null,
+                'usp'          => $request->usp    ? ucfirst($request->usp)    : null,
+            ]);
 
-        // -------------------------------------------------------
-        // Data dasar
-        // -------------------------------------------------------
-        $produk->nama_produk  = $request->nama_produk;
-        $produk->sku          = $request->sku;
-        $produk->deskripsi    = $request->deskripsi;
-        $produk->id_kat       = $request->id_kat ?? $request->id_kategori;
-        $produk->merk         = $request->merk;
-        $produk->tempratur    = $request->tempratur;
-        $produk->eu1935       = $request->eu1935;
-        $produk->fda          = $request->fda;
-        $produk->usp          = $request->usp;
-        $produk->status_aktif = $request->status_aktif;
-        $produk->weight       = $request->weight;
-        $produk->length       = $request->length;
-        $produk->width        = $request->width;
-        $produk->height       = $request->height;
+            // Update data spesifik per tipe
+            if ($type === 'rulon') {
+                $produk->fill($request->only([
+                    'id_environmant',
+                    'pressure',
+                    'mating',
+                    'max_pv',
+                    'maximum_p',
+                    'max_v',
+                    'deformation',
+                    'tensile',
+                    'elongation',
+                    'spesific',
+                    'friction'
+                ]));
+            } elseif ($type === 'tygon') {
+                $produk->fill($request->only([
+                    'tygon_size_category',
+                    'inner_diameter',
+                    'outer_diameter',
+                    'wall_thickness',
+                    'tygon_length',
+                    'min_bend_radius',
+                    'tygon_working_pressure_73',
+                    'tygon_working_pressure_320',
+                    'tygon_vacuum_73',
+                    'tygon_vacuum_320'
+                ]));
+            } elseif ($type === 'sg-25') {
+                $produk->fill($request->only(['tensile', 'elongation', 'spesific', 'friction']));
+            }
 
-        // -------------------------------------------------------
-        // Data khusus RULON
-        // -------------------------------------------------------
-        if ($type === 'rulon') {
-            $produk->id_jenis       = $request->id_shape;
-            $produk->id_environmant = $request->id_environmant;
-            $produk->pressure       = $request->pressure;
-            $produk->mating         = $request->mating;
-            $produk->max_pv         = $request->max_pv;
-            $produk->maximum_p      = $request->maximum_p;
-            $produk->max_v          = $request->max_v;
-            $produk->friction       = $request->friction;
-            $produk->elongation     = $request->elongation;
-            $produk->deformation    = $request->deformation;
-            $produk->tensile        = $request->tensile;
-            $produk->spesific       = $request->spesific;
-        }
+            $produk->save();
 
-        // -------------------------------------------------------
-        // Data khusus TYGON 3350
-        // -------------------------------------------------------
-        if ($type === 'tygon') {
-            $jenisRecord = ProdukJenis::find($request->tygon_size_category);
+            // Update/Create/Delete Stok
+            $commonStokData = $request->only(['weight', 'length', 'width', 'height']);
 
-            $produk->tygon_size_category        = $jenisRecord ? strtolower($jenisRecord->jenis) : $produk->tygon_size_category;
-            $produk->inner_diameter             = $request->inner_diameter;
-            $produk->outer_diameter             = $request->outer_diameter;
-            $produk->wall_thickness             = $request->wall_thickness;
-            $produk->min_bend_radius            = $request->min_bend_radius;
-            $produk->tygon_length               = $request->tygon_length;
-            $produk->tygon_working_pressure_73  = $request->tygon_working_pressure_73;
-            $produk->tygon_working_pressure_320 = $request->tygon_working_pressure_320;
-            $produk->tygon_vacuum_73            = $request->tygon_vacuum_73;
-            $produk->tygon_vacuum_320           = $request->tygon_vacuum_320;
-            $produk->tensile                    = $request->tensile;
-            $produk->elongation                 = $request->elongation;
-            $produk->spesific                   = $request->spesific;
-            $produk->id_environmant             = $request->id_environmant;
-        }
+            if ($type === 'rulon') {
+                $submittedUkuranIds = $request->input('id_ukuran', []);
+                // Hapus stok yang ukurannya tidak ada lagi di request
+                ProdukStok::where('id_produk', $produk->id)
+                    ->whereNotIn('id_ukuran', array_filter($submittedUkuranIds))
+                    ->delete();
 
-        $produk->save();
+                foreach ($submittedUkuranIds as $i => $ukuranId) {
+                    if (!$ukuranId) continue;
+                    ProdukStok::updateOrCreate(
+                        [
+                            'id_produk' => $produk->id,
+                            'id_ukuran' => $ukuranId,
+                        ],
+                        array_merge($commonStokData, [
+                            'id_jenis' => $request->shape_id,
+                            'stok'     => $request->stok_variant[$i] ?? 0,
+                            'harga'    => $request->harga_variant[$i] ?? 0,
+                        ])
+                    );
+                }
+            } elseif ($type === 'tygon') {
+                ProdukStok::updateOrCreate(
+                    ['id_produk' => $produk->id],
+                    array_merge($commonStokData, [
+                        'id_jenis'  => $request->tygon_size_category,
+                        'id_ukuran' => null,
+                        'stok'      => $request->tygon_stok ?? 0,
+                        'harga'     => $request->tygon_harga ?? 0,
+                    ])
+                );
+            } elseif ($type === 'sg-25') {
+                $submittedUkuranIds = $request->input('sg25_ukuran_id', []);
+                // Hapus stok yang ukurannya tidak ada lagi di request
+                ProdukStok::where('id_produk', $produk->id)
+                    ->whereNotIn('id_ukuran', array_filter($submittedUkuranIds))
+                    ->delete();
 
-        // -------------------------------------------------------
-        // Update produk_stok — TYGON
-        // -------------------------------------------------------
-        if ($type === 'tygon') {
-            $jenisRecord = ProdukJenis::find($request->tygon_size_category);
-
-            // Cari record stok yang sudah ada, update jika ada, buat baru jika belum
-            ProdukStok::updateOrCreate(
-                [
-                    'id_produk' => $produk->id,
-                    'id_ukuran' => null,
-                ],
-                [
-                    'id_jenis' => $jenisRecord ? $jenisRecord->id : null,
-                    'stok'     => $request->tygon_stok  ?? 0,
-                    'harga'    => $request->tygon_harga ?? 0,
-                    'weight'   => $request->weight  ?? null,
-                    'length'   => $request->length  ?? null,
-                    'width'    => $request->width   ?? null,
-                    'height'   => $request->height  ?? null,
-                ]
-            );
-        }
-
-        // -------------------------------------------------------
-        // Data khusus TOP TAPE
-        // -------------------------------------------------------
-        if ($type === 'toptape') {
-            $produk->friction   = $request->friction;
-            $produk->elongation = $request->elongation;
-            $produk->tensile    = $request->tensile;
-            $produk->spesific   = $request->spesific;
-            $produk->stok       = $request->tape_stok  ?? $produk->stok;
-            $produk->harga      = $request->tape_harga ?? $produk->harga;
-        }
-
-        $produk->save();
-
-        // -------------------------------------------------------
-        // Update variants — RULON
-        // -------------------------------------------------------
-        if ($type === 'rulon') {
-            $produk->variants()->delete();
-
-            if ($request->has('variants')) {
-                foreach ($request->variants as $variantData) {
-                    if (isset($variantData['id_ukuran']) && (isset($variantData['stok']) || isset($variantData['harga']))) {
-                        $produk->variants()->create([
-                            'id_jenis'  => $request->id_shape,
-                            'id_ukuran' => $variantData['id_ukuran'],
-                            'sku'       => $variantData['sku'],
-                            'stok'      => $variantData['stok'],
-                            'harga'     => $variantData['harga'],
-                            'length'    => $variantData['length'],
-                            'width'     => $variantData['width'],
-                            'height'    => $variantData['height'],
-                            'weight'    => $variantData['weight'],
-                        ]);
-                    }
+                foreach ($submittedUkuranIds as $i => $ukuranId) {
+                    if (!$ukuranId) continue;
+                    ProdukStok::updateOrCreate(
+                        [
+                            'id_produk' => $produk->id,
+                            'id_ukuran' => $ukuranId,
+                        ],
+                        array_merge($commonStokData, [
+                            'id_jenis' => 11, // Hardcoded for SG-25
+                            'stok'     => $request->sg25_stok[$i] ?? 0,
+                            'harga'    => $request->sg25_harga[$i] ?? 0,
+                        ])
+                    );
                 }
             }
-        }
+        });
 
-        return redirect()->route('admin.produk.index')
+        return redirect()
+            ->route('admin.produk.index')
             ->with('success', 'Produk berhasil diperbarui.');
     }
+
 
     // =========================================================
     // DESTROY
@@ -666,10 +536,10 @@ class ProdukController extends Controller
             unlink(public_path('backend/assets/media/produk/' . $produk->gambar));
         }
 
+        // produk_stok akan otomatis terhapus karena ada ON DELETE CASCADE
         $produk->delete();
 
         Log::info('Product ID: ' . $id . ' deleted successfully.');
-        Log::info('Auth check before redirect: ' . (Auth::check() ? 'Authenticated' : 'Not Authenticated'));
 
         return redirect()->route('admin.produk.index')->with('success', 'Produk berhasil dihapus');
     }
@@ -757,5 +627,14 @@ class ProdukController extends Controller
     public function getFieldsByCategory(ProdukCategory $category)
     {
         return response()->json($this->getFieldConfig($category));
+    }
+
+    // =========================================================
+    // API: Get Ukurans by Shape ID
+    // =========================================================
+    public function getUkuransByShape($shapeId)
+    {
+        $ukurans = Ukuran::where('id_produk_jenis', $shapeId)->get();
+        return response()->json($ukurans);
     }
 }

@@ -43,4 +43,9 @@ class FedexCommercialInvoice extends Model
     {
         return $this->belongsTo(Transaksi::class, 'order_id');
     }
+
+    public function tradeDocument()
+    {
+        return $this->hasOne(FedexTradeDocument::class, 'fedex_commercial_invoice_id');
+    }
 }

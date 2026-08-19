@@ -17,36 +17,45 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $locale = $request->segment(1);
-        $query = Produk::with('kategori');
-        $activeCategory = null;
 
-        // Filter by Category
-        if ($request->has('category')) {
-            $categoryId = $request->category;
-            $query->where('id_kat', $categoryId);
-            $activeCategory = ProdukKategori::find($categoryId);
+        $query = Produk::query()->with('kategori');
+
+        // Filter by Category (support array maupun single value)
+        if ($request->filled('category')) {
+            $query->whereIn('id_kat', (array) $request->category);
         }
 
         // Filter by Mating Surface Hardness
-        if ($request->has('mating_surface_hardness')) {
+        if ($request->filled('mating_surface_hardness')) {
             $query->whereIn('mating', $request->mating_surface_hardness);
         }
 
         // Filter by Pressure
-        if ($request->has('pressure')) {
+        if ($request->filled('pressure')) {
             $query->whereIn('maximum_p', $request->pressure);
         }
 
-        $produk = $query->groupBy('nama_produk')->paginate(12);
+        // Ganti groupBy + paginate → pakai unique nama_produk via subquery
+        $produk = $query
+            ->whereIn('id', function ($sub) {
+                $sub->selectRaw('MIN(id)')
+                    ->from('produk')
+                    ->groupBy('nama_produk');
+            })
+            ->paginate(12)
+            ->withQueryString(); // filter ikut terbawa di setiap link halaman
 
-        // Get filter options
         $categories = ProdukKategori::all();
         $matings    = Produk::select('mating')->distinct()->whereNotNull('mating')->get();
         $pressures  = Produk::select('maximum_p')->distinct()->whereNotNull('maximum_p')->get();
+        $activeCategory = null;
+
+        if ($request->filled('category')) {
+            $activeCategory = ProdukKategori::find($request->category[0] ?? $request->category);
+        }
 
         $view_data = compact('produk', 'categories', 'matings', 'pressures', 'activeCategory');
 
-        // Cek view locale-specific dulu, fallback ke generic
         if (view()->exists($locale . '.frontend.produk')) {
             return view($locale . '.frontend.produk', $view_data);
         }
@@ -192,17 +201,84 @@ class ProductController extends Controller
             'locale'
         ));
     }
+
+
     public function showTopTape(Request $request)
     {
         $locale = $request->segment(1);
-        $activeCategory = ProdukCategory::where('category', 'top tape')->firstOrFail();
+        $activeCategory = ProdukCategory::where('category', 'SG-25')->firstOrFail();
 
-        $produk = Produk::with('category')->where('id_kat', $activeCategory->id)->groupBy('nama_produk')->paginate(12);
+        $query = Produk::with('kategori')->where('id_cat', $activeCategory->id);
 
-        return view($locale . '.frontend.category.toptape', compact('produk', 'activeCategory'));
+        if ($request->filled('mating_surface_hardness')) {
+            $query->whereIn('mating', $request->mating_surface_hardness);
+        }
+
+        if ($request->filled('pressure')) {
+            $query->whereIn('maximum_p', $request->pressure);
+        }
+
+        $produk = $query->paginate(12);
+
+        $matings = Produk::where('id_cat', $activeCategory->id)
+            ->select('mating')->distinct()->whereNotNull('mating')->get();
+
+        $pressures = Produk::where('id_cat', $activeCategory->id)
+            ->select('maximum_p')->distinct()->whereNotNull('maximum_p')->get();
+
+        return view($locale . '.frontend.category.SG-25', compact(
+            'produk',
+            'activeCategory',
+            'matings',
+            'pressures',
+            'locale'
+        ));
     }
 
+
     public function showProdukTygon(Request $request, $id)
+    {
+        $locale = $request->segment(1);
+        $produk = Produk::findOrFail($id);
+        $productIds = Produk::where('nama_produk', $produk->nama_produk)->pluck('id');
+
+        $all_variants = ProdukStok::whereIn('id_produk', $productIds)
+            ->with(['jenis', 'ukuran'])
+            ->whereHas('jenis')
+            ->whereHas('ukuran', function ($q) {
+                $q->whereNotNull('nama_ukuran')->where('nama_ukuran', '!=', '');
+            })
+            ->get();
+
+        $jenis_unik = ProdukJenis::whereHas('stoks', function ($query) use ($productIds) {
+            $query->whereIn('id_produk', $productIds)
+                ->whereHas('ukuran', function ($q) {
+                    $q->whereNotNull('nama_ukuran')->where('nama_ukuran', '!=', '');
+                });
+        })->get();
+
+        $variants_data = $all_variants->map(function ($variant) {
+            if (!$variant->jenis || !$variant->ukuran || !$variant->ukuran->nama_ukuran) return null;
+            return [
+                'id'        => $variant->id,
+                'jenis_id'  => $variant->id_jenis,
+                'ukuran_id' => $variant->id_ukuran,
+                'dimensi'   => $variant->ukuran->nama_ukuran,
+                'stok'      => $variant->stok,
+                'hargi'     => $variant->hargi,
+                'harga'     => $variant->harga,
+                'gambar'    => $variant->gambar ?? optional($variant->produk)->gambar,
+            ];
+        })->filter()->values();
+
+        $view_data = compact('produk', 'jenis_unik', 'variants_data');
+
+        return view($locale . '.frontend.category.produktygon', $view_data);
+    }
+
+
+
+    public function showProdukSG(Request $request, $id)
     {
         $locale = $request->segment(1);
         $produk = Produk::findOrFail($id);
@@ -244,10 +320,10 @@ class ProductController extends Controller
 
         $view_data = compact('produk', 'jenis_unik', 'variants_data');
 
-        if (view()->exists($locale . '.frontend.category.produktygon')) {
-            return view($locale . '.frontend.category.produktygon', $view_data);
+        if (view()->exists($locale . '.frontend.category.produksg')) {
+            return view($locale . '.frontend.category.produksg', $view_data);
         }
 
-        return view('frontend.category.produktygon', $view_data);
+        return view('frontend.category.produksg', $view_data);
     }
 }

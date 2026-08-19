@@ -110,7 +110,7 @@ class LionParcelController extends Controller
                                 'serviceCode' => $item['product'],
                                 'serviceName' => $item['product'],
                                 'serviceType' => $item['service_type'],
-                                'price' => $item['total_tariff'],
+                                'price' => $item['total_tariff'] + 10000,
                                 'etd' => $item['estimasi_sla'] === '- Hari'
                                     ? null
                                     : $item['estimasi_sla'],

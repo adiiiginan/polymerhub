@@ -31,7 +31,7 @@
                                             <input type="checkbox" name="category[]" value="{{ $category->id_kat }}"
                                                 class="h-4 w-4 rounded border-gray-300 text-[var(--accent-color)] focus:ring-[var(--accent-color)] mr-3"
                                                 {{ in_array($category->id_kat, request('category', [])) ? 'checked' : '' }}>
-                                            <span class="text-sm">{{ $category->kategori->kategori }}</span>
+                                            <span class="text-sm">{{ $category->category }}</span>
                                         </label>
                                     @endforeach
                                 </div>
@@ -88,6 +88,13 @@
                 </div>
             </div>
 
+            <!-- Product Count Info -->
+            @if ($produk->total() > 0)
+                <p class="text-sm text-gray-500 mb-6">
+                    Showing {{ $produk->firstItem() }}–{{ $produk->lastItem() }} of {{ $produk->total() }} products
+                </p>
+            @endif
+
             <!-- Produk Grid -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                 @forelse ($produk as $p)
@@ -110,15 +117,11 @@
                             <div class="grid grid-cols-2 gap-3 text-xs text-gray-500 mb-5 text-center">
                                 <div class="bg-gray-50 border border-gray-200/80 p-2 rounded-md">
                                     <p class="font-semibold">Temperature</p>
-                                    <p class="text-sm font-medium text-gray-800 mt-1">
-                                        {{ $p->tempratur }}
-                                    </p>
+                                    <p class="text-sm font-medium text-gray-800 mt-1">{{ $p->tempratur }}</p>
                                 </div>
                                 <div class="bg-gray-50 border border-gray-200/80 p-2 rounded-md">
                                     <p class="font-semibold">Max Pressure</p>
-                                    <p class="text-sm font-medium text-gray-800 mt-1">
-                                        {{ $p->maximum_p }}
-                                    </p>
+                                    <p class="text-sm font-medium text-gray-800 mt-1">{{ $p->maximum_p }}</p>
                                 </div>
                             </div>
 
@@ -133,7 +136,7 @@
                 @empty
                     <div class="sm:col-span-2 xl:col-span-4 text-center py-24 bg-white rounded-lg shadow-sm">
                         <svg class="mx-auto h-16 w-16 text-gray-300" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor" aria-hidden="true">
+                            stroke="currentColor">
                             <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"
                                 stroke-width="1.5"
                                 d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2z" />
@@ -144,6 +147,84 @@
                     </div>
                 @endforelse
             </div>
+
+            <!-- Pagination -->
+            @if ($produk->hasPages())
+                <div class="mt-12 flex flex-col items-center gap-4">
+                    <nav class="flex items-center gap-1" aria-label="Pagination">
+
+                        {{-- Previous --}}
+                        @if ($produk->onFirstPage())
+                            <span
+                                class="inline-flex items-center justify-center w-10 h-10 rounded-lg text-gray-300 cursor-not-allowed bg-white border border-gray-200">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M15 19l-7-7 7-7" />
+                                </svg>
+                            </span>
+                        @else
+                            <a href="{{ $produk->previousPageUrl() }}"
+                                class="inline-flex items-center justify-center w-10 h-10 rounded-lg text-gray-600 bg-white border border-gray-200 hover:border-[var(--main-color)] hover:text-[var(--main-color)] transition-all">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M15 19l-7-7 7-7" />
+                                </svg>
+                            </a>
+                        @endif
+
+                        {{-- Page Numbers --}}
+                        @foreach ($produk->links()->elements as $element)
+                            @if (is_string($element))
+                                <span class="inline-flex items-center justify-center w-10 h-10 text-gray-400 text-sm">
+                                    {{ $element }}
+                                </span>
+                            @endif
+
+                            @if (is_array($element))
+                                @foreach ($element as $page => $url)
+                                    @if ($page == $produk->currentPage())
+                                        <span
+                                            class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--main-color)] text-white font-semibold text-sm shadow-md">
+                                            {{ $page }}
+                                        </span>
+                                    @else
+                                        <a href="{{ $url }}"
+                                            class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-gray-200 text-gray-600 hover:border-[var(--main-color)] hover:text-[var(--main-color)] transition-all text-sm font-medium">
+                                            {{ $page }}
+                                        </a>
+                                    @endif
+                                @endforeach
+                            @endif
+                        @endforeach
+
+                        {{-- Next --}}
+                        @if ($produk->hasMorePages())
+                            <a href="{{ $produk->nextPageUrl() }}"
+                                class="inline-flex items-center justify-center w-10 h-10 rounded-lg text-gray-600 bg-white border border-gray-200 hover:border-[var(--main-color)] hover:text-[var(--main-color)] transition-all">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5l7 7-7 7" />
+                                </svg>
+                            </a>
+                        @else
+                            <span
+                                class="inline-flex items-center justify-center w-10 h-10 rounded-lg text-gray-300 cursor-not-allowed bg-white border border-gray-200">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5l7 7-7 7" />
+                                </svg>
+                            </span>
+                        @endif
+
+                    </nav>
+
+                    {{-- Page info --}}
+                    <p class="text-sm text-gray-500">
+                        Page {{ $produk->currentPage() }} of {{ $produk->lastPage() }}
+                    </p>
+                </div>
+            @endif
+
         </div>
     </div>
 
@@ -153,8 +234,8 @@
         <div
             class="relative max-w-md w-full mx-auto p-8 bg-white rounded-2xl shadow-xl text-center transform transition-all duration-300 scale-95 opacity-0">
             <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 mb-6">
-                <svg class="h-8 w-8 text-[var(--accent-color)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg">
+                <svg class="h-8 w-8 text-[var(--accent-color)]" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
                     </path>
@@ -162,9 +243,7 @@
             </div>
             <h3 class="text-2xl leading-6 font-bold text-gray-900">Login Required</h3>
             <div class="mt-3 px-4 py-3">
-                <p class="text-base text-gray-600">
-                    Please log in to see more details and product options.
-                </p>
+                <p class="text-base text-gray-600">Please log in to see more details and product options.</p>
             </div>
             <div class="flex items-center justify-center space-x-4 mt-6">
                 <button id="close-modal"
@@ -203,7 +282,6 @@
             viewOptionsButtons.forEach(button => {
                 button.addEventListener('click', function(e) {
                     e.preventDefault();
-
                     @if (Auth::guard('customer')->check())
                         window.location.href = this.dataset.url;
                     @else

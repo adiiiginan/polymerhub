@@ -4,7 +4,6 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use InvalidArgumentException;
 
 class FedexTradeDocumentService
 {
@@ -14,104 +13,102 @@ class FedexTradeDocumentService
     public function __construct(FedexService $fedexService)
     {
         $this->fedexService = $fedexService;
+
+        // FIX #5 — Document/ETD API punya host BERBEDA dari API FedEx lainnya
+        // (rate, shipment, oauth token pakai apis-sandbox.fedex.com / apis.fedex.com,
+        // tapi Document API pakai documentapitest.prod.fedex.com / documentapi.prod.fedex.com).
+        // Sebelumnya service ini salah reuse config('services.fedex.sandbox_url') / live_url,
+        // sehingga request selalu dikirim ke host yang salah dan FedEx membalas 404 NOT.FOUND.ERROR.
         $this->apiUrl = config('services.fedex.mode') === 'sandbox'
-            ? config('services.fedex.sandbox_url')
-            : config('services.fedex.live_url');
+            ? config('services.fedex.document_sandbox_url')
+            : config('services.fedex.document_live_url');
     }
 
     /**
-     * Uploads a Commercial Invoice to the FedEx Trade Documents API.
+     * Upload commercial invoice ke FedEx ETD API.
      *
-     * @param string $trackingNumber
-     * @param string $filePath
-     * @param string $originCountryCode
-     * @param string $destinationCountryCode
-     * @return array
-     * @throws \Exception
+     * FIX #1 — Signature disesuaikan dengan pemanggil di UploadTradeDocuments.php:
+     *           tambah $trackingNumber dan $shipmentDate.
+     * FIX #2 — Duplicate key 'contentType' dihapus; pakai mime_content_type() agar dinamis.
+     * FIX #3 — Content-Type attachment tidak lagi hardcoded 'application/pdf'.
+     * FIX #4 — workflowName diperbaiki menjadi 'ETDPreshipment' (huruf kecil 's').
+     * FIX #5 — Base URL diarahkan ke Document API host yang benar (lihat constructor).
      */
     public function uploadCommercialInvoice(
         string $trackingNumber,
         string $filePath,
         string $originCountryCode,
-        string $destinationCountryCode
+        string $destinationCountryCode,
+        string $shipmentDate = ''
     ): array {
-        // 1. Validasi input
-        if (empty($trackingNumber)) {
-            throw new InvalidArgumentException('Tracking number cannot be empty.');
-        }
-        if (empty($originCountryCode)) {
-            throw new InvalidArgumentException('Origin country code cannot be empty.');
-        }
-        if (empty($destinationCountryCode)) {
-            throw new InvalidArgumentException('Destination country code cannot be empty.');
-        }
-
         $absolutePath = public_path($filePath);
+
         if (!file_exists($absolutePath) || !is_readable($absolutePath)) {
             throw new \Exception("File does not exist or is not readable at: {$absolutePath}");
         }
 
-        // 2. Buat payload dokumen dinamis
+        // FIX #2 & #3 — deteksi MIME type sekali, pakai di dua tempat
+        $mimeType = mime_content_type($absolutePath);
+
         $documentPayload = [
-            'referenceId' => $trackingNumber,
-            'name' => basename($absolutePath),
-            'contentType' => 'application/pdf',
-            'meta' => [
-                'imageType' => 'COMMERCIAL_INVOICE',
-                'imageIndex' => 'IMAGE_1',
-                // Data dinamis tambahan bisa diletakkan di sini jika diperlukan oleh API
-                // 'originCountryCode' => strtoupper($originCountryCode),
-                // 'destinationCountryCode' => strtoupper($destinationCountryCode),
-            ]
+            'workflowName' => 'ETDPreshipment',   // FIX #4: 's' huruf kecil
+            'carrierCode'  => 'FDXE',
+            'name'         => basename($absolutePath),
+            'contentType'  => $mimeType,           // FIX #2: satu nilai, dinamis
+            'meta'         => [
+                'shipDocumentType'       => 'COMMERCIAL_INVOICE',
+                'trackingNumber'         => $trackingNumber,
+                'shipmentDate'           => $shipmentDate
+                    ? $shipmentDate . 'T00:00:00'
+                    : now()->format('Y-m-d\T00:00:00'),
+                'originCountryCode'      => strtoupper($originCountryCode),
+                'destinationCountryCode' => strtoupper($destinationCountryCode),
+            ],
         ];
 
-        $rulesPayload = [
-            'workflowName' => 'ETDPreshipment'
-        ];
-
-        // 3. Logging sebelum request
-        Log::info('Attempting to upload FedEx trade document.', [
-            'tracking_number' => $trackingNumber,
-            'origin_country' => $originCountryCode,
-            'destination_country' => $destinationCountryCode,
-            'file_path' => $filePath,
-            'payload' => $documentPayload
+        Log::info('FedexTradeDocumentService: Attempting ETD upload.', [
+            'tracking_number'  => $trackingNumber,
+            'file_path'        => $filePath,
+            'mime_type'        => $mimeType,
+            'api_url'          => $this->apiUrl,
+            'document_payload' => $documentPayload,
         ]);
 
-        // 4. Kirim request multipart
         $response = Http::withToken($this->fedexService->getAccessToken())
             ->asMultipart()
             ->timeout(60)
-            ->post("{$this->apiUrl}/documents/v1/etd/upload", [
+            ->post("{$this->apiUrl}/documents/v1/etds/upload", [
                 [
                     'name'     => 'document',
-                    'contents' => json_encode($documentPayload)
+                    'contents' => json_encode($documentPayload),
+                    'headers'  => ['Content-Type' => 'application/json'],
                 ],
                 [
                     'name'     => 'attachment',
                     'contents' => fopen($absolutePath, 'r'),
-                    'filename' => basename($absolutePath)
-                ]
+                    'filename' => basename($absolutePath),
+                    'headers'  => ['Content-Type' => $mimeType], // FIX #3: dinamis
+                ],
             ]);
 
-        // 5. Logging setelah request
-        $this->fedexService->logRequest('documents/v1/etd/upload', [
+        $this->fedexService->logRequest('documents/v1/etds/upload', [
             'document' => $documentPayload,
-            'file' => $filePath
+            'file'     => $filePath,
         ], $response);
 
-        // 6. Handle response
         if ($response->failed()) {
-            Log::error('FedEx trade document upload failed.', [
-                'status' => $response->status(),
-                'body' => $response->body(),
+            Log::error('FedexTradeDocumentService: ETD upload failed.', [
+                'status'          => $response->status(),
+                'body'            => $response->body(),
+                'tracking_number' => $trackingNumber,
+                'api_url'         => $this->apiUrl,
             ]);
             $response->throw();
         }
 
-        Log::info('FedEx trade document uploaded successfully.', [
+        Log::info('FedexTradeDocumentService: ETD upload success.', [
             'tracking_number' => $trackingNumber,
-            'response' => $response->json()
+            'response'        => $response->json(),
         ]);
 
         return $response->json();

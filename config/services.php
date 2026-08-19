@@ -32,21 +32,47 @@ return [
     ],
 
     'fedex' => [
-        'mode' => env('FEDEX_MODE', 'sandbox'),
-        'sandbox_url' => env('FEDEX_SANDBOX_URL'),
-        'live_url' => env('FEDEX_LIVE_URL'),
-        'client_id' => env('FEDEX_CLIENT_ID'),
+        'mode'          => env('FEDEX_MODE', 'sandbox'), // 'sandbox' atau 'live'
+
+        'client_id'     => env('FEDEX_CLIENT_ID'),
         'client_secret' => env('FEDEX_CLIENT_SECRET'),
+
+        // API umum: oauth token, rate quote, create shipment, dst.
+        'sandbox_url'   => env('FEDEX_SANDBOX_URL', 'https://apis-sandbox.fedex.com'),
+        'live_url'      => env('FEDEX_LIVE_URL', 'https://apis.fedex.com'),
+
+        // Document API (ETD upload) — host TERPISAH, jangan disamakan dengan di atas.
+        'document_sandbox_url' => env('FEDEX_DOCUMENT_SANDBOX_URL', 'https://documentapitest.prod.fedex.com/sandbox'),
+        'document_live_url'    => env('FEDEX_DOCUMENT_LIVE_URL', 'https://documentapi.prod.fedex.com'),
+
+        // FIX: key ini sebelumnya HILANG dari config, padahal FedexService.php
+        // memanggil config('services.fedex.shipper.*') dan
+        // config('services.fedex.account_number') di buildShipmentPayload()
+        // dan getRates(). Karena tidak pernah didefinisikan di sini, semua
+        // value tersebut selalu null -> menyebabkan FedEx menolak request
+        // createShipment dengan 422 INVALID.INPUT.EXCEPTION
+        // ("city cannot be null", "countryCode cannot be null",
+        // "phoneNumber cannot be null", dst).
+        //
+        // Env variable di bawah sudah ada dan terisi benar di .env,
+        // tinggal disambungkan di sini.
         'account_number' => env('FEDEX_ACCOUNT_NUMBER'),
+
         'shipper' => [
-            'name' => env('FEDEX_SHIPPER_NAME'),
-            'email' => env('FEDEX_SHIPPER_EMAIL'),
-            'phone' => env('FEDEX_SHIPPER_PHONE'),
-            'company' => env('FEDEX_SHIPPER_COMPANY'),
-            'address' => env('FEDEX_SHIPPER_ADDRESS'),
-            'city' => env('FEDEX_SHIPPER_CITY'),
-            'state' => env('FEDEX_SHIPPER_STATE'),
-            'postal_code' => env('FEDEX_SHIPPER_POSTAL'),
+            'name'         => env('FEDEX_SHIPPER_NAME'),
+            'email'        => env('FEDEX_SHIPPER_EMAIL'),
+            'phone'        => env('FEDEX_SHIPPER_PHONE'),
+            'company'      => env('FEDEX_SHIPPER_COMPANY'),
+            'address'      => env('FEDEX_SHIPPER_ADDRESS'),
+            'city'         => env('FEDEX_SHIPPER_CITY'),
+            'state'        => env('FEDEX_SHIPPER_STATE'),
+            // NOTE: sengaja pakai FEDEX_SHIPPER_POSTAL / FEDEX_SHIPPER_COUNTRY
+            // (bukan SHIPPER_POSTAL_CODE / SHIPPER_COUNTRY_CODE yang generik),
+            // karena nama generik itu sudah dipakai juga oleh block 'lionparcel'
+            // di bawah — kalau dipakai bersama, salah satu bisa saling menimpa
+            // tergantung urutan definisi di .env. Pastikan FEDEX_SHIPPER_POSTAL
+            // dan FEDEX_SHIPPER_COUNTRY ada di .env (sudah ada di .env kamu).
+            'postal_code'  => env('FEDEX_SHIPPER_POSTAL'),
             'country_code' => env('FEDEX_SHIPPER_COUNTRY'),
         ],
     ],

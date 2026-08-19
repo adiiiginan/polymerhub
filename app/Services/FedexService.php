@@ -35,27 +35,67 @@ class FedexService
 
     public function getAccessToken(): string
     {
-        return Cache::remember('fedex_access_token', 3500, function () {
+        try {
+
+            Log::info('FedEx Get Token Start', [
+                'url' => "{$this->apiUrl}/oauth/token",
+                'client_id' => $this->clientId,
+            ]);
+
             $payload = [
                 'grant_type' => 'client_credentials',
                 'client_id' => $this->clientId,
                 'client_secret' => $this->clientSecret,
             ];
-            $response = Http::asForm()->timeout(60)->post("{$this->apiUrl}/oauth/token", $payload);
 
-            $this->logRequest('oauth/token', $payload, $response);
+            $response = Http::asForm()
+                ->withoutVerifying()
+                ->timeout(120)
+                ->connectTimeout(60)
+                ->post(
+                    "{$this->apiUrl}/oauth/token",
+                    $payload
+                );
+
+            Log::info('FedEx Token Response', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
 
             if ($response->failed()) {
-                $response->throw();
+
+                Log::error('FedEx Token Failed', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
+                throw new \Exception(
+                    'FedEx OAuth Error: ' . $response->body()
+                );
             }
 
-            return $response->json('access_token');
-        });
+            $token = $response->json('access_token');
+
+            if (!$token) {
+                throw new \Exception('FedEx access token kosong.');
+            }
+
+            return $token;
+        } catch (\Throwable $e) {
+
+            Log::error('FedEx Get Token Exception', [
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
+            ]);
+
+            throw $e;
+        }
     }
 
-    public function createShipment($transaksi): array
+    public function createShipment($transaksi, ?string $docId = null): array
     {
-        $payload = $this->buildShipmentPayload($transaksi);
+        $payload = $this->buildShipmentPayload($transaksi, $docId);
 
         $response = Http::withToken($this->getAccessToken())
             ->withHeaders(['Content-Type' => 'application/json'])
@@ -95,6 +135,18 @@ class FedexService
         file_put_contents($absolutePath, $labelContent);
         $publicUrl = asset($relativePath);
 
+        // ========================================================
+        // CAPTURE output.meta dari FedEx response
+        // ========================================================
+        $outputMeta = $responseBody['output']['meta'] ?? null;
+        $customerTransactionId = $responseBody['customerTransactionId'] ?? null;
+
+        Log::info('FedEx Shipment Created - Commercial Document Metadata', [
+            'trackingNumber' => $trackingNumber,
+            'output.meta' => $outputMeta,
+            'customerTransactionId' => $customerTransactionId,
+        ]);
+
         return [
             'trackingNumber' => $trackingNumber,
             'labelUrl' => $publicUrl,
@@ -107,7 +159,14 @@ class FedexService
             'shipperAddress' => json_encode($payload['requestedShipment']['shipper']),
             'recipientAddress' => json_encode($payload['requestedShipment']['recipients'][0]),
             'weight' => $payload['requestedShipment']['requestedPackageLineItems'][0]['weight']['value'],
-            'response' => $responseBody
+            'response' => $responseBody,
+            // ========================================================
+            // TAMBAHAN: output.meta dan customerTransactionId
+            // ========================================================
+            'output' => [
+                'meta' => $outputMeta,
+            ],
+            'customerTransactionId' => $customerTransactionId,
         ];
     }
 
@@ -137,7 +196,7 @@ class FedexService
         ]);
     }
 
-    private function buildShipmentPayload($transaksi): array
+    private function buildShipmentPayload($transaksi, ?string $docId = null): array
     {
         $address = $transaksi->address;
 
@@ -253,11 +312,20 @@ class FedexService
         });
 
         if ($hasCompleteCommodityData) {
+            $etdDetail = [
+                'requestedDocumentTypes' => ['COMMERCIAL_INVOICE'],
+            ];
+
+            // Jika ada docId dari pre-shipment upload, sertakan
+            if ($docId) {
+                $etdDetail['attachedDocuments'] = [
+                    ['documentId' => $docId]
+                ];
+            }
+
             $payload['requestedShipment']['shipmentSpecialServices'] = [
-                "specialServiceTypes" => ["ELECTRONIC_TRADE_DOCUMENTS"],
-                "etdDetail" => [
-                    "requestedDocumentTypes" => ["COMMERCIAL_INVOICE"]
-                ]
+                'specialServiceTypes' => ['ELECTRONIC_TRADE_DOCUMENTS'],
+                'etdDetail'           => $etdDetail,
             ];
         }
 
@@ -282,136 +350,542 @@ class FedexService
         return null;
     }
 
-    public function getRates(array $data)
+    public function getRates(array $data): array
     {
         try {
             Log::info('FedexService->getRates: Start', ['data' => $data]);
-            // Validasi dan casting berat total
-            $totalWeight = (float) ($data['totalWeight'] ?? 0);
-            Log::info('FedexService->getRates: Total weight calculated', ['totalWeight' => $totalWeight]);
 
+            // ---------------------------------------------------------
+            // 1. Validasi data masuk
+            // ---------------------------------------------------------
+            $totalWeight = (float) ($data['totalWeight'] ?? 0);
+            $destZip     = trim($data['destinationZip']     ?? '');
+            $destCountry = strtoupper(trim($data['destinationCountry'] ?? ''));
+
+            if ($totalWeight <= 0) {
+                throw new \InvalidArgumentException('totalWeight harus lebih dari 0.');
+            }
+            if (empty($destZip)) {
+                throw new \InvalidArgumentException('destinationZip tidak boleh kosong.');
+            }
+            if (empty($destCountry) || strlen($destCountry) !== 2) {
+                throw new \InvalidArgumentException('destinationCountry harus berformat ISO 2 huruf (contoh: US, SG, AU).');
+            }
+
+            Log::info('FedexService->getRates: Validation passed', [
+                'totalWeight' => $totalWeight,
+                'destZip'     => $destZip,
+                'destCountry' => $destCountry,
+            ]);
+
+            // ---------------------------------------------------------
+            // 2. Ambil access token
+            // ---------------------------------------------------------
             $accessToken = $this->getAccessToken();
             Log::info('FedexService->getRates: Access token retrieved');
 
-            $payload = [
-                'accountNumber' => [
-                    'value' => config('services.fedex.account_number')
-                ],
-                'requestedShipment' => [
-                    'shipper' => [
-                        'address' => [
-                            'postalCode' => config('services.fedex.shipper.postal_code'),
-                            'countryCode' => config('services.fedex.shipper.country_code')
-                        ]
-                    ],
-                    'recipient' => [
-                        'address' => [
-                            'postalCode' => $data['destinationZip'],
-                            'countryCode' => $data['destinationCountry']
-                        ]
-                    ],
-                    'requestedPackageLineItems' => [
-                        [
-                            'weight' => [
-                                'units' => 'KG',
-                                'value' => $totalWeight
-                            ]
-                        ]
-                    ]
-                ]
-            ];
-            Log::info('FedexService->getRates: Payload built', ['payload' => $payload]);
+            // ---------------------------------------------------------
+            // 3. Bangun payload — sesuai request yang berhasil
+            // ---------------------------------------------------------
+            $shipperPostal   = config('services.fedex.shipper.postal_code');
+            $shipperCountry  = strtoupper(config('services.fedex.shipper.country_code'));
+            $shipperCity     = config('services.fedex.shipper.city');
+            $shipperAddress  = config('services.fedex.shipper.address');
+            $accountNumber   = config('services.fedex.account_number');
 
-            Log::info('FEDEX RATE REQUEST', [
-                'destinationZip' => $data['destinationZip'],
-                'country' => $data['destinationCountry'],
-                'weight' => $totalWeight,
+            $destCity        = trim($data['destinationCity']   ?? '');
+            $destStreet      = trim($data['destinationStreet'] ?? '');
+            $totalValue      = (float) ($data['totalValue']    ?? 1);
+            $items           = $data['items']                  ?? [];
+
+            // Helper: split alamat jadi maks 2 baris @ 35 karakter
+            $splitStreet = function (?string $addr): array {
+                if (!$addr) return [];
+                $wrapped = wordwrap($addr, 35, "\n", true);
+                return array_slice(explode("\n", $wrapped), 0, 2);
+            };
+
+            // Build packageLineItems dengan dimensions (sama seperti FedExController)
+            $packageLineItems = [];
+            foreach ($items as $item) {
+                $packageLineItems[] = [
+                    'weight' => [
+                        'units' => 'KG',
+                        'value' => (float) ($item['gros'] ?? 0) * (int) ($item['qty'] ?? 1),
+                    ],
+                    'dimensions' => [
+                        'length' => (int) round($item['length'] ?? 1),
+                        'width'  => (int) round($item['width']  ?? 1),
+                        'height' => (int) round($item['height'] ?? 1),
+                        'units'  => 'CM',
+                    ],
+                ];
+            }
+
+            // Fallback jika items kosong
+            if (empty($packageLineItems)) {
+                $packageLineItems[] = [
+                    'weight' => [
+                        'units' => 'KG',
+                        'value' => $totalWeight,
+                    ],
+                ];
+            }
+
+            // ---------------------------------------------------------
+            // 3a. Deteksi domestik vs internasional
+            // ---------------------------------------------------------
+            $isInternational = $destCountry !== $shipperCountry;
+
+            Log::info('FedexService->getRates: International check', [
+                'shipperCountry'   => $shipperCountry,
+                'destCountry'      => $destCountry,
+                'isInternational'  => $isInternational,
             ]);
 
+            $requestedShipment = [
+                'shipper' => [
+                    'address' => [
+                        'streetLines' => $splitStreet($shipperAddress),
+                        'city'        => $shipperCity,
+                        'postalCode'  => $shipperPostal,
+                        'countryCode' => $shipperCountry,
+                    ],
+                ],
+                'recipient' => [
+                    'address' => [
+                        'streetLines' => $splitStreet($destStreet),
+                        'city'        => $destCity,
+                        'postalCode'  => $destZip,
+                        'countryCode' => $destCountry,
+                    ],
+                ],
+                'preferredCurrency' => 'USD',
+                'rateRequestType'   => ['ACCOUNT', 'LIST'],
+                'shipDateStamp'     => now()->format('Y-m-d'),
+                'pickupType'        => 'DROPOFF_AT_FEDEX_LOCATION',
+                'packagingType'     => 'YOUR_PACKAGING',
+
+                // Ikutin struktur contoh FedEx — paymentType di luar payor
+                'shippingChargesPayment' => [
+                    'payor' => [
+                        'responsibleParty' => [
+                            'address' => [
+                                'streetLines' => $splitStreet($shipperAddress),
+                                'city'        => $shipperCity,
+                                'postalCode'  => $shipperPostal,
+                                'countryCode' => $shipperCountry,
+                                'residential' => false,
+                            ],
+                            'accountNumber' => [
+                                'value' => $accountNumber,
+                            ],
+                        ],
+                    ],
+                    'paymentType' => 'SENDER', // ← di luar payor, bukan di dalam
+                ],
+
+                'requestedPackageLineItems' => $packageLineItems,
+            ];
+
+            // ---------------------------------------------------------
+            // 3b. customsClearanceDetail — HANYA untuk shipment internasional
+            // (ini yang sebelumnya hilang dan menyebabkan
+            // RATE.CUSTOMCLEARANCEDETAIL.INVALID)
+            // ---------------------------------------------------------
+            if ($isInternational) {
+                $commodities = [];
+
+                foreach ($items as $item) {
+                    $qty          = (int) ($item['qty'] ?? 1);
+                    $weightPerQty = (float) ($item['gros'] ?? 0);
+                    $unitPrice    = (float) ($item['price'] ?? ($totalValue / max(count($items), 1)));
+
+                    $commodities[] = [
+                        'description'         => trim($item['description'] ?? $item['name'] ?? 'General Merchandise'),
+                        'name'                 => trim($item['name'] ?? 'General Merchandise'),
+                        'countryOfManufacture' => $item['countryOfManufacture'] ?? 'ID',
+                        'quantity'             => $qty,
+                        'quantityUnits'        => 'PCS',
+                        'numberOfPieces'       => $qty,
+                        'unitPrice' => [
+                            'amount'   => round($unitPrice, 2),
+                            'currency' => 'USD',
+                        ],
+                        'customsValue' => [
+                            'amount'   => round($unitPrice * $qty, 2),
+                            'currency' => 'USD',
+                        ],
+                        'weight' => [
+                            'units' => 'KG',
+                            'value' => $weightPerQty * $qty,
+                        ],
+                    ];
+                }
+
+                // Fallback kalau items kosong / tidak lengkap
+                if (empty($commodities)) {
+                    $commodities[] = [
+                        'description'         => 'General Merchandise',
+                        'name'                 => 'General Merchandise',
+                        'countryOfManufacture' => 'ID',
+                        'quantity'             => 1,
+                        'quantityUnits'        => 'PCS',
+                        'numberOfPieces'       => 1,
+                        'unitPrice' => [
+                            'amount'   => round($totalValue, 2),
+                            'currency' => 'USD',
+                        ],
+                        'customsValue' => [
+                            'amount'   => round($totalValue, 2),
+                            'currency' => 'USD',
+                        ],
+                        'weight' => [
+                            'units' => 'KG',
+                            'value' => $totalWeight,
+                        ],
+                    ];
+                }
+
+                $requestedShipment['customsClearanceDetail'] = [
+                    'commercialInvoice' => [
+                        'shipmentPurpose' => 'SOLD',
+                    ],
+                    'dutiesPayment' => [
+                        'paymentType' => 'SENDER',
+                        'payor' => [
+                            'responsibleParty' => [
+                                'address' => [
+                                    'streetLines' => $splitStreet($shipperAddress),
+                                    'city'        => $shipperCity,
+                                    'postalCode'  => $shipperPostal,
+                                    'countryCode' => $shipperCountry,
+                                    'residential' => false,
+                                ],
+                                'accountNumber' => [
+                                    'value' => $accountNumber,
+                                ],
+                            ],
+                        ],
+                    ],
+                    'commodities' => $commodities,
+                ];
+            }
+
+            $payload = [
+                'accountNumber' => [
+                    'value' => $accountNumber,
+                ],
+                'rateRequestControlParameters' => [
+                    'returnTransitTimes'         => true,
+                    'servicesNeededOnRateFailure' => true,
+                ],
+                'requestedShipment' => $requestedShipment,
+            ];
+
+            Log::info('FedexService->getRates: Payload built', [
+                'payload' => $payload,
+                'hasCustomsClearanceDetail' => array_key_exists('customsClearanceDetail', $requestedShipment),
+            ]);
+
+            // ---------------------------------------------------------
+            // 4. Hit FedEx API
+            // ---------------------------------------------------------
             $response = Http::withToken($accessToken)
                 ->withHeaders(['Content-Type' => 'application/json'])
                 ->timeout(60)
                 ->post("{$this->apiUrl}/rate/v1/rates/quotes", $payload);
-            Log::info('FedexService->getRates: API call made');
 
             $this->logRequest('rate/v1/rates/quotes', $payload, $response);
-            Log::info('FedexService->getRates: Request logged');
 
-            if ($response->failed()) {
-                Log::error('FedexService->getRates: API call failed.', ['response' => $response->body()]);
-                $response->throw();
-            }
 
-            $rates = $response->json('output.rateReplyDetails');
-            Log::info('FedexService->getRates: Rates received.', ['rates' => $rates]);
-
-            return $rates;
-        } catch (\Throwable $e) {
-            Log::error('Exception caught in FedexService->getRates!', [
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(), // Full stack trace
+            Log::info('FedexService->getRates: API response', [
+                'status' => $response->status(),
+                'body'   => $response->body(),
             ]);
 
-            // Re-throw the exception to let the controller handle the final response
+            // ---------------------------------------------------------
+            // 5. Handle error response
+            // ---------------------------------------------------------
+            if ($response->failed()) {
+                $errorBody = $response->json();
+                $errorMsg  = $errorBody['errors'][0]['message']
+                    ?? $errorBody['message']
+                    ?? 'FedEx API request failed.';
+
+                Log::error('FedexService->getRates: API call failed', [
+                    'status' => $response->status(),
+                    'error'  => $errorMsg,
+                    'body'   => $response->body(),
+                ]);
+
+                throw new \Exception('FedEx API Error: ' . $errorMsg);
+            }
+
+            // ---------------------------------------------------------
+            // 6. Cek error di body meski status 2xx
+            // ---------------------------------------------------------
+            $responseBody = $response->json();
+            if (!empty($responseBody['errors'])) {
+                $errorMsg = $responseBody['errors'][0]['message'] ?? 'Unknown FedEx error.';
+                Log::warning('FedexService->getRates: FedEx returned errors in body', [
+                    'errors' => $responseBody['errors'],
+                ]);
+                throw new \Exception('FedEx Error: ' . $errorMsg);
+            }
+
+            // ---------------------------------------------------------
+            // 7. Ambil data rates dan FORMAT sebelum return
+            // ---------------------------------------------------------
+            $rateDetails = $response->json('output.rateReplyDetails');
+
+            if (!is_array($rateDetails) || count($rateDetails) === 0) {
+                Log::warning('FedexService->getRates: No rates returned from FedEx');
+                return [];
+            }
+
+            $formatted = [];
+            foreach ($rateDetails as $rate) {
+                if (!isset($rate['ratedShipmentDetails'][0]['totalNetCharge'])) {
+                    continue;
+                }
+
+                $commit   = $rate['commit'] ?? null;
+                $delivery = 'N/A';
+
+                if ($commit) {
+                    if (isset($commit['deliveryTimestamp'])) {
+                        $delivery = \Carbon\Carbon::parse($commit['deliveryTimestamp'])
+                            ->format('d M Y, H:i');
+                    } elseif (isset($commit['dateDetail']['dayOfWeek'])) {
+                        $delivery = 'Estimated by ' . $commit['dateDetail']['dayOfWeek'];
+                    }
+                }
+
+                $formatted[] = [
+                    'service_name'       => $rate['serviceName']                              ?? 'Unknown Service',
+                    'service_type'       => $rate['serviceType']                              ?? 'UNKNOWN',
+                    'delivery_timestamp' => $delivery,
+                    'total_charge'       => $rate['ratedShipmentDetails'][0]['totalNetCharge'],
+                    'currency'           => $rate['ratedShipmentDetails'][0]['currency']      ?? 'USD',
+                ];
+            }
+
+            Log::info('FedexService->getRates: Formatted rates', ['count' => count($formatted)]);
+
+            return $formatted;
+        } catch (\Throwable $e) {
+            Log::error('FedexService->getRates: Exception', [
+                'message' => $e->getMessage(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
+            ]);
+
+            // Re-throw supaya CartController bisa handle
             throw $e;
         }
     }
 
-    public function uploadCommercialInvoice(string $trackingNumber, string $relativeFilePath)
+    /**
+     * Track Multiple Piece Shipment (MPS) — mengambil daftar tracking number
+     * yang terasosiasi dengan sebuah master tracking number.
+     *
+     * Endpoint: POST /track/v1/associatedshipments
+     *
+     * Contoh pemakaian:
+     *  $fedex->getAssociatedShipments([
+     *      'trackingNumber'    => '794657194545',   // wajib
+     *      'shipDateBegin'     => '2018-11-01',      // opsional
+     *      'shipDateEnd'       => '2018-11-03',      // opsional
+     *      'associatedType'    => 'STANDARD_MPS',    // opsional, default STANDARD_MPS
+     *      'includeDetailedScans' => true,           // opsional, default true
+     *      'resultsPerPage'    => 20,                // opsional
+     *      'pagingToken'       => null,              // opsional, dipakai untuk halaman berikutnya
+     *  ]);
+     *
+     * @param array $data
+     * @return array
+     */
+    public function getAssociatedShipments(array $data): array
     {
-        $accessToken = $this->getAccessToken();
-        $absoluteFilePath = public_path($relativeFilePath);
-        $fileName = basename($absoluteFilePath);
+        try {
+            Log::info('FedexService->getAssociatedShipments: Start', ['data' => $data]);
 
-        if (!file_exists($absoluteFilePath)) {
-            throw new \Exception("File not found at path: {$absoluteFilePath}");
+            // ---------------------------------------------------------
+            // 1. Validasi data masuk
+            // ---------------------------------------------------------
+            $trackingNumber = trim($data['trackingNumber'] ?? '');
+
+            if (empty($trackingNumber)) {
+                throw new \InvalidArgumentException('trackingNumber wajib diisi.');
+            }
+
+            $associatedType       = $data['associatedType'] ?? 'STANDARD_MPS';
+            $includeDetailedScans = array_key_exists('includeDetailedScans', $data)
+                ? (bool) $data['includeDetailedScans']
+                : true;
+
+            // ---------------------------------------------------------
+            // 2. Bangun trackingNumberInfo
+            // ---------------------------------------------------------
+            $trackingNumberInfo = [
+                'trackingNumber' => $trackingNumber,
+            ];
+
+            if (!empty($data['trackingNumberUniqueId'])) {
+                $trackingNumberInfo['trackingNumberUniqueId'] = $data['trackingNumberUniqueId'];
+            }
+
+            if (!empty($data['carrierCode'])) {
+                $trackingNumberInfo['carrierCode'] = $data['carrierCode'];
+            }
+
+            // ---------------------------------------------------------
+            // 3. Bangun masterTrackingNumberInfo
+            // ---------------------------------------------------------
+            $masterTrackingNumberInfo = [
+                'trackingNumberInfo' => $trackingNumberInfo,
+            ];
+
+            if (!empty($data['shipDateBegin'])) {
+                $masterTrackingNumberInfo['shipDateBegin'] = $data['shipDateBegin'];
+            }
+
+            if (!empty($data['shipDateEnd'])) {
+                $masterTrackingNumberInfo['shipDateEnd'] = $data['shipDateEnd'];
+            }
+
+            // ---------------------------------------------------------
+            // 4. Bangun payload utama
+            // ---------------------------------------------------------
+            $payload = [
+                'includeDetailedScans'    => $includeDetailedScans,
+                'associatedType'          => $associatedType,
+                'masterTrackingNumberInfo' => $masterTrackingNumberInfo,
+            ];
+
+            // ---------------------------------------------------------
+            // 5. pagingDetails — opsional (dipakai untuk pagination)
+            // ---------------------------------------------------------
+            if (!empty($data['resultsPerPage']) || !empty($data['pagingToken'])) {
+                $pagingDetails = [];
+
+                if (!empty($data['resultsPerPage'])) {
+                    $pagingDetails['resultsPerPage'] = (int) $data['resultsPerPage'];
+                }
+
+                if (!empty($data['pagingToken'])) {
+                    $pagingDetails['pagingToken'] = $data['pagingToken'];
+                }
+
+                $payload['pagingDetails'] = $pagingDetails;
+            }
+
+            Log::info('FedexService->getAssociatedShipments: Payload built', ['payload' => $payload]);
+
+            // ---------------------------------------------------------
+            // 6. Ambil access token & hit FedEx API
+            // ---------------------------------------------------------
+            $accessToken = $this->getAccessToken();
+
+            $response = Http::withToken($accessToken)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->timeout(60)
+                ->post("{$this->apiUrl}/track/v1/associatedshipments", $payload);
+
+            $this->logRequest('track/v1/associatedshipments', $payload, $response);
+
+            Log::info('FedexService->getAssociatedShipments: API response', [
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+
+            // ---------------------------------------------------------
+            // 7. Handle error response
+            // ---------------------------------------------------------
+            if ($response->failed()) {
+                $errorBody = $response->json();
+                $errorMsg  = $errorBody['errors'][0]['message']
+                    ?? $errorBody['message']
+                    ?? 'FedEx API request failed.';
+
+                Log::error('FedexService->getAssociatedShipments: API call failed', [
+                    'status' => $response->status(),
+                    'error'  => $errorMsg,
+                    'body'   => $response->body(),
+                ]);
+
+                throw new \Exception('FedEx API Error: ' . $errorMsg);
+            }
+
+            $responseBody = $response->json();
+
+            if (!empty($responseBody['errors'])) {
+                $errorMsg = $responseBody['errors'][0]['message'] ?? 'Unknown FedEx error.';
+                Log::warning('FedexService->getAssociatedShipments: FedEx returned errors in body', [
+                    'errors' => $responseBody['errors'],
+                ]);
+                throw new \Exception('FedEx Error: ' . $errorMsg);
+            }
+
+            return $responseBody;
+        } catch (\Throwable $e) {
+            Log::error('FedexService->getAssociatedShipments: Exception', [
+                'message' => $e->getMessage(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
+            ]);
+
+            throw $e;
         }
+    }
+
+    public function uploadDocument(string $trackingNumber, string $pdfPath): array
+    {
+        $token = $this->getAccessToken();
 
         $documentPayload = [
             'referenceId' => $trackingNumber,
-            'name' => $fileName,
+            'name'        => basename($pdfPath),
             'contentType' => 'application/pdf',
             'meta' => [
-                'imageType' => 'COMMERCIAL_INVOICE',
-                'imageIndex' => 'IMAGE_1'
-            ]
+                'shipDocumentType'       => 'COMMERCIAL_INVOICE',
+                'trackingNumber'         => $trackingNumber,
+                'shipmentDate'           => now()->format('Y-m-d'),
+                'carrierCode'            => 'FDXE',
+                'originCountryCode'      => 'ID',
+                'destinationCountryCode' => 'US', // hardcode dulu atau ambil dari parameter
+            ],
         ];
 
         $rulesPayload = [
-            'workflowName' => 'ETDPreshipment'
+            'workflowName' => 'ETDPostShipment',
         ];
 
-        $requestPayload = [
-            'document' => $documentPayload,
-            'rules' => $rulesPayload,
-            'file' => $relativeFilePath
-        ];
-
-        $response = Http::withToken($accessToken)
+        $response = Http::withToken($token)
             ->asMultipart()
             ->timeout(60)
-            ->post("{$this->apiUrl}/documents/v1/document", [
+            ->post("{$this->apiUrl}/documents/v1/etds/upload", [
                 [
                     'name'     => 'document',
-                    'contents' => json_encode($documentPayload)
+                    'contents' => json_encode($documentPayload),
+                    'headers'  => ['Content-Type' => 'application/json'],
                 ],
                 [
                     'name'     => 'rules',
-                    'contents' => json_encode($rulesPayload)
+                    'contents' => json_encode($rulesPayload),
+                    'headers'  => ['Content-Type' => 'application/json'],
                 ],
                 [
                     'name'     => 'attachment',
-                    'contents' => fopen($absoluteFilePath, 'r'),
-                    'filename' => $fileName
-                ]
+                    'contents' => fopen($pdfPath, 'r'),
+                    'filename' => basename($pdfPath),
+                    'headers'  => ['Content-Type' => 'application/pdf'],
+                ],
             ]);
 
-        $this->logRequest('documents/v1/document', $requestPayload, $response);
-
         if ($response->failed()) {
-            $response->throw();
+            throw new \Exception("FedEx Upload Document API error: " . $response->body());
         }
 
         return $response->json();

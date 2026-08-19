@@ -38,7 +38,8 @@ Route::prefix('id')->name('id.')->group(function () {
         Route::get('/produk', [ProductController::class, 'index'])->name('produk');
         Route::get('/category/tygon', [ProductController::class, 'showTygon'])->name('category.tygon');
         Route::get('/category/produktygon/{id}', [ProductController::class, 'showProdukTygon'])->name('category.produktygon');
-        Route::get('/category/top-tape', [ProductController::class, 'showTopTape'])->name('category.toptape');
+        Route::get('/category/sg-25', [ProductController::class, 'showTopTape'])->name('category.SG-25');
+        Route::get('/category/produksg/{id}', [ProductController::class, 'showProdukSG'])->name('category.produksg');
         Route::get('/produk/{id}', [ProductController::class, 'show'])->name('produk.show');
         Route::post('/lionparcel/get-services', [LionParcelController::class, 'getServices'])->name('lionparcel.get-services');
         Route::post('/cart/add', [CartController::class, 'storeLion'])->name('cart.add');

@@ -26,8 +26,8 @@
                             class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Rulon</a>
                         <a href="{{ route('id.frontend.category.tygon') }}"
                             class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Tygon</a>
-                        <a href="{{ route('id.frontend.category.toptape') }}"
-                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Top Tape</a>
+                        <a href="{{ route('id.frontend.category.SG-25') }}"
+                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">SG-25</a>
                     </div>
                 </div>
                 <a href="{{ route('id.frontend.white') }}"

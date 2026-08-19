@@ -4,7 +4,7 @@
         <td>
             {{ $p->nama_produk }}
             <span style="display:none;">
-                @if ($p->variants->isNotEmpty())
+                @if ($p->variants && $p->variants->isNotEmpty())
                     @foreach ($p->variants as $variant)
                         {{ optional($variant->jenis)->jenis }}
                     @endforeach
@@ -13,7 +13,7 @@
         </td>
         <td>{{ $p->kategori->nama_kategori ?? 'N/A' }}</td>
         <td>
-            @if ($p->variants->isNotEmpty())
+            @if ($p->variants && $p->variants->isNotEmpty())
                 @foreach ($p->variants as $variant)
                     {{ $variant->stok ?? 0 }}@if (!$loop->last)
                         ,
